@@ -369,7 +369,6 @@ tr.selected {
             <div class="col-12">
                 <form class="jumbotron p-4" action="immunizations.php" name="add_immunization" id="add_immunization">
                     <input type="hidden" name="csrf_token_form" value="<?php echo attr(CsrfUtils::collectCsrfToken()); ?>" />
-
                     <input type="hidden" name="mode" id="mode" value="add" />
                     <input type="hidden" name="id" id="id" value="<?php echo attr($id ?? ''); ?>" />
                     <input type="hidden" name="pid" id="pid" value="<?php echo attr($pid); ?>" />
@@ -382,51 +381,83 @@ tr.selected {
                     ?>
 
                     <?php if (!($useCVX)) { ?>
-                    <div class="form-group mt-3">
-                        <label><?php echo xlt('Immunization'); ?></label>
+
+                           
+                    <div class="form-row mt-3">
+                        <div class="col-12 col-sm">
+                            <label><?php echo xlt('Immunization'); ?></label>
+                        </div>
                         <?php
                         // Modified 7/2009 by BM to incorporate the immunization items into the list_options listings
                         generate_form_field(array('data_type' => 1,'field_id' => 'immunization_id','list_id' => 'immunizations','empty_title' => 'SKIP'), $immunization_id);
                         ?>
                     </div>
                     <?php } else { ?>
-                    <div class="form-group mt-3">
-                        <label><?php echo xlt('Immunization'); ?> (<?php echo xlt('CVX Code'); ?>)</label>
-                        <input type='text' class='form-control' size='10' name='cvx_code' id='cvx_code'
-                            value='<?php echo attr($cvx_code ?? ''); ?>' onclick='sel_cvxcode(this)'
-                            title='<?php echo xla('Click to select or change CVX code'); ?>'/>
-                        <div id='cvx_description' class='d-inline float-right p-1 ml-2'>
+                    <div class="form-row mt-3">
+                        <div class="col-12 col-sm">
+                            <label><?php echo xlt('Immunization'); ?> (<?php echo xlt('CVX Code'); ?>)</label>
+                        </div>
+                        <div class="col-12 col-sm">     
+                            <input type='text' class='form-control' size='10' name='cvx_code' id='cvx_code'
+                                value='<?php echo attr($cvx_code ?? ''); ?>' onclick='sel_cvxcode(this)'
+                                title='<?php echo xla('Click to select or change CVX code'); ?>'/>
+                                <div id='cvx_description' class='d-inline float-right p-1 ml-2'>
                             <?php echo xlt($code_text ?? ''); ?>
                         </div>
+                        <?php } ?>
                     </div>
-                    <?php } ?>
-
+                    <div class="form-row mt-3">
+                        <div class="col-12 col-sm">
+                            <label><?php echo xlt('Date & Time Administered'); ?></label>
+                        </div>
+                        <div class="col-12 col-sm">
+                            <input type='text' size='14' class='datetimepicker form-control' name="administered_date" id="administered_date"
+                                value='<?php echo (!empty($administered_date)) ? attr($administered_date) : date('Y-m-d H:i'); ?>'
+                                title='<?php echo xla('yyyy-mm-dd Hours(24):minutes'); ?>'/>
+                        </div>
+                    </div> 
+                    
+                        <div class="col-12 col-sm">
+                            <label><?php echo xlt('Amount Administered'); ?></label>
+                        </div>
+                        <div class="col-12 col-sm">         
+                            <input class='text form-control mb-2' type='text' name="immuniz_amt_adminstrd" size="20" value="<?php echo attr($immuniz_amt_adminstrd ?? ''); ?>" />
+                        </div>
+                        <div class="col-12 col-sm">
+                            <?php echo generate_select_list("form_drug_units", "drug_units", ($drugunitselecteditem ?? ''), 'Select Drug Unit', ''); ?>
+                        </div>
+                        </div>
+                              
+                    <div class="form-row mt-3">
+                        <div class="col-12 col-sm">
+                            <label><?php echo xlt('Immunization Expiration Date'); ?></label>
+                        </div>
+                        <div class="col-12 col-sm">
+                            <input type='text' size='10' class='datepicker form-control' name="immuniz_exp_date" id="immuniz_exp_date"
+                                value='<?php echo (!empty($immuniz_exp_date)) ? attr($immuniz_exp_date) : ''; ?>'
+                                title='<?php echo xla('yyyy-mm-dd'); ?>' />
+                        </div>
+                        <div class="col-12 col-sm">
+                            <label><?php echo xlt('Immunization Manufacturer'); ?></label>
+                        </div>
+                        <div class="col-12 col-sm">
+                            <?php echo generate_select_list('manufacturer', 'Immunization_Manufacturer', ($manufacturer ?? ''), 'Select Manufacturer', ' ');?>
+                        </div>
+                        
+                    </div>
+                    <div class="form-row mt-3">
+                        <div class="col-12 col-sm">
+                         <label><?php echo xlt('Immunization Lot Number'); ?></label>
+                                <br>
+                                <select class='auto form-control' type='text' name="lot_number" size="25" value="<?php echo attr($lot_number ?? ''); ?>"></select>
+                        </div>
+                    </div>    
+                    
+                    
+                
+                    
                     <div class="form-group mt-3">
-                        <label><?php echo xlt('Date & Time Administered'); ?></label>
-                        <input type='text' size='14' class='datetimepicker form-control' name="administered_date" id="administered_date"
-                            value='<?php echo (!empty($administered_date)) ? attr($administered_date) : date('Y-m-d H:i'); ?>'
-                            title='<?php echo xla('yyyy-mm-dd Hours(24):minutes'); ?>'/>
-                    </div>
-                    <div class="form-group mt-3">
-                        <label><?php echo xlt('Amount Administered'); ?></label>
-                        <input class='text form-control mb-2' type='text' name="immuniz_amt_adminstrd" size="25" value="<?php echo attr($immuniz_amt_adminstrd ?? ''); ?>" />
-                        <?php echo generate_select_list("form_drug_units", "drug_units", ($drugunitselecteditem ?? ''), 'Select Drug Unit', ''); ?>
-                    </div>
-                    <div class="form-group mt-3">
-                        <label><?php echo xlt('Immunization Expiration Date'); ?></label>
-                        <input type='text' size='10' class='datepicker form-control' name="immuniz_exp_date" id="immuniz_exp_date"
-                            value='<?php echo (!empty($immuniz_exp_date)) ? attr($immuniz_exp_date) : ''; ?>'
-                            title='<?php echo xla('yyyy-mm-dd'); ?>' />
-                    </div>
-                    <div class="form-group mt-3">
-                        <label><?php echo xlt('Immunization Manufacturer'); ?></label>
-                        <?php echo generate_select_list('manufacturer', 'Immunization_Manufacturer', ($manufacturer ?? ''), 'Select Manufacturer', ' ');?>
-                    </div>
-                    <div class="form-group mt-3">
-                        <label><?php echo xlt('Immunization Lot Number'); ?></label>
-                        <br>
-                        <select class='auto form-control' type='text' name="lot_number" size="25" value="<?php echo attr($lot_number ?? ''); ?>"></select>
-                    </div>
+                        </div>
                     <div class="form-row mt-3">
                         <div class="col-12">
                             <label><?php echo xlt('Name and Title of Immunization Administrator'); ?></label>
@@ -456,71 +487,104 @@ tr.selected {
                                 </select>
                         </div>
                     </div>
-                    <div class="form-group mt-3">
-                        <label><?php echo xlt('Date Immunization Information Statements Given'); ?></label>
-                        <input type='text' size='10' class='datepicker form-control' name="education_date" id="education_date"
-                            value='<?php echo (!empty($education_date)) ? attr($education_date) : date('Y-m-d'); ?>'
-                            title='<?php echo xla('yyyy-mm-dd'); ?>' />
+                    <div class="form-row mt-3">
+                        <div class="col-12 col-sm">
+                            <label><?php echo xlt('Date Immunization Information Statements Given'); ?></label> 
+                        </div>
+                        <div class="col-12 col-sm">
+                            <input type='text' size='10' class='datepicker form-control' name="education_date" id="education_date"
+                                value='<?php echo (!empty($education_date)) ? attr($education_date) : date('Y-m-d'); ?>'
+                                title='<?php echo xla('yyyy-mm-dd'); ?>' />
+                        </div> 
+                        <div class="col-12 col-sm">
+                            <label>
+                                <?php echo xlt('Date of VIS Statement'); ?>
+                                (<a href="https://www.cdc.gov/vaccines/hcp/vis/current-vis.html" title="<?php echo xla('Help'); ?>" rel="noopener" target="_blank">?</a>)
+                            </label>
+                        </div>
+                        <div class="col-12 col-sm">
+                            <input type='text' size='10' class='datepicker  form-control' name="vis_date" id="vis_date"
+                                value='<?php echo (!empty($vis_date)) ? attr($vis_date) : date('Y-m-d'); ?>'
+                                title='<?php echo xla('yyyy-mm-dd'); ?>' />
+                        </div>     
+
+                    </div>  
+                    <div class="form-row mt-3"> 
+                        <div class="col-12 col-sm">
+                            <label><?php echo xlt('Route'); ?></label> 
+                        </div>
+                        <div class="col-12 col-sm">
+                            <?php echo generate_select_list('immuniz_route', 'drug_route', ($immuniz_route ?? ''), 'Select Route', '');?>
+                        </div>
+                        <div class="col-12 col-sm">
+                            <label><?php echo xlt('Information Source'); ?></label>
+                        </div>
+                        <div class="col-12 col-sm">
+                            <?php echo generate_select_list('immunization_informationsource', 'immunization_informationsource', ($immuniz_information_source ?? ''), 'Select Information Source', ' ');?>           
+                        </div>
                     </div>
-                    <div class="form-group mt-3">
-                        <label>
-                            <?php echo xlt('Date of VIS Statement'); ?>
-                            (<a href="https://www.cdc.gov/vaccines/hcp/vis/current-vis.html" title="<?php echo xla('Help'); ?>" rel="noopener" target="_blank">?</a>)
-                        </label>
-                        <input type='text' size='10' class='datepicker  form-control' name="vis_date" id="vis_date"
-                            value='<?php echo (!empty($vis_date)) ? attr($vis_date) : date('Y-m-d'); ?>'
-                            title='<?php echo xla('yyyy-mm-dd'); ?>' />
-                    </div>
-                    <div class="form-group mt-3">
-                        <label><?php echo xlt('Route'); ?></label>
-                        <?php echo generate_select_list('immuniz_route', 'drug_route', ($immuniz_route ?? ''), 'Select Route', '');?>
-                    </div>
-                    <div class="form-group mt-3">
-                        <label><?php echo xlt('Administration Site'); ?></label>
-                        <?php echo generate_select_list('immuniz_admin_ste', 'immunization_administered_site', ($immuniz_admin_ste ?? ''), 'Select Administration Site', ' ', '', '', '', null, false, 'proc_body_site');?>
-                    </div>
+                    
+                    
                     <div class="form-group mt-3">
                         <label><?php echo xlt('Notes'); ?></label>
-                        <textarea class="form-control" name="note" id="note" rows="5" cols="25"><?php echo text($note ?? ''); ?></textarea>
+                        <textarea class="form-control" name="note" id="note" rows="5" cols="25"><?php echo text($note ?? ''); ?></textarea> 
+                         
                     </div>
-                    <div class="form-group mt-3">
-                        <label><?php echo xlt('Information Source'); ?></label>
-                        <?php echo generate_select_list('immunization_informationsource', 'immunization_informationsource', ($immuniz_information_source ?? ''), 'Select Information Source', ' ');?>
+                    <div class="form-row mt-3">  
+                        <div class="col-12 col-sm">
+                            <label><?php echo xlt('Completion Status'); ?></label>
+                        </div>
+                        <div class="col-12 col-sm">
+                            <?php echo generate_select_list('immuniz_completion_status', 'Immunization_Completion_Status', ($immuniz_completion_status ?? ''), 'Select Completion Status', ' ');?>   
+                        </div>
+                        <div class="col-12 col-sm">
+                            <label><?php echo xlt('Substance Refusal Reason'); ?></label>
+                        </div>
+                        <div class="col-12 col-sm">
+                            <?php echo generate_select_list('immunization_refusal_reason', 'immunization_refusal_reason', ($immuniz_refusal_reason ?? ''), 'Select Refusal Reason', ' ');?>
+                        </div>
                     </div>
-                    <div class="form-group mt-3">
-                        <label><?php echo xlt('Completion Status'); ?></label>
-                        <?php echo generate_select_list('immuniz_completion_status', 'Immunization_Completion_Status', ($immuniz_completion_status ?? ''), 'Select Completion Status', ' ');?>
-                    </div>
-                    <div class="form-group mt-3">
-                        <label><?php echo xlt('Substance Refusal Reason'); ?></label>
-                        <?php echo generate_select_list('immunization_refusal_reason', 'immunization_refusal_reason', ($immuniz_refusal_reason ?? ''), 'Select Refusal Reason', ' ');?>
-                    </div>
-                    <div class="form-group mt-3">
-                        <label><?php echo xlt('Reason Code'); ?></label>
-                        <input class="code-selector-popup form-control immunizationReasonCode"
-                               name="reason_code" type="text" value="<?php echo attr($reason_code ?? ''); ?>"
-                               placeholder="<?php echo xla("Select a reason code"); ?>"
-                        />
-                        <input type="hidden" name="reason_code_text" value="<?php echo attr($reason_code_text ?? ''); ?>" />
-                        <p class="reason_code_text d-inline float-right p-1 ml-2 <?php echo empty($reason_code_text) ? "" : "d-none"; ?>"></p>
-                    </div>
-                    <div class="form-group mt-3">
-                        <label><?php echo xlt('Immunization Ordering Provider'); ?></label>
-                        <select class="form-control" name="ordered_by_id" id='ordered_by_id'>
-                            <option value=""></option>
-                                <?php
-                                $sql = "select id, CONCAT(IFNULL(lname,''), ' ,',IFNULL(fname,'')) as full_name " .
-                                    "from users where username != '' and password != 'NoLogin' " .
-                                    "order by full_name";
+                    <div class="form-row mt-3">  
+                        <div class="col-12 col-sm">
+                            <label><?php echo xlt('Reason Code'); ?></label>         
+                        </div>
+                        <div class="col-12 col-sm">
+                            <input class="code-selector-popup form-control immunizationReasonCode"
+                                name="reason_code" type="text" value="<?php echo attr($reason_code ?? ''); ?>"
+                                placeholder="<?php echo xla("Select a reason code"); ?>"
+                            />
+                        </div>
+                        <div class="col-12 col-sm">
+                            <input type="hidden" name="reason_code_text" value="<?php echo attr($reason_code_text ?? ''); ?>" />
+                        </div>
+                        <div class="col-12 col-sm">
+                            <p class="reason_code_text d-inline float-right p-1 ml-2 <?php echo empty($reason_code_text) ? "" : "d-none"; ?>"></p>
+                        </div>
+                        <div class="col-12 col-sm">
+                            <label><?php echo xlt('Immunization Ordering Provider'); ?></label>
+                        </div>
+                        <div class="col-12 col-sm">
+                            <select class="form-control" name="ordered_by_id" id='ordered_by_id'>
+                                <option value=""></option>
+                                    <?php
+                                    $sql = "select id, CONCAT(IFNULL(lname,''), ' ,',IFNULL(fname,'')) as full_name " .
+                                        "from users where username != '' and password != 'NoLogin' " .
+                                        "order by full_name";
 
-                                $result = sqlStatement($sql);
-                                while ($row = sqlFetchArray($result)) {
-                                    echo '<OPTION VALUE=' . attr($row['id']);
-                                    echo (isset($ordered_by_id) && $ordered_by_id != "" ? $ordered_by_id : $_SESSION['authUserID']) == $row['id'] ? ' selected>' : '>';
-                                    echo text($row['full_name']) . '</OPTION>';
-                                }
-                                ?>
-                        </select>
+                                    $result = sqlStatement($sql);
+                                    while ($row = sqlFetchArray($result)) {
+                                        echo '<OPTION VALUE=' . attr($row['id']);
+                                        echo (isset($ordered_by_id) && $ordered_by_id != "" ? $ordered_by_id : $_SESSION['authUserID']) == $row['id'] ? ' selected>' : '>';
+                                        echo text($row['full_name']) . '</OPTION>';
+                                    }
+                                    ?>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group mt-3">
+                        
+                        
                     </div>
 
                     <div class="row mt-3">
