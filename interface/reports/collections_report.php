@@ -737,21 +737,21 @@ if ($form_unbilled == "on") {
     if ($where) {
         $where .= " ";
     }
-    $where .= " /** haroon start **/ (b.billed = 0 OR b.billed IS NULL OR (b.billed = '0' AND b.bill_process = '3')) /** haroon end **/ ";
+    $where .= " /** haroon start **/ (afabs.billed = 0 OR afabs.billed IS NULL OR (afabs.billed = '0' AND afabs.bill_process = '3')) /** haroon end **/ ";
 
 } elseif ($form_unbilled == "off") {
     $form_unbilled = "1"; // Billed
     if ($where) {
         $where .= " ";
     }
-    $where .= " /** haroon start **/ (b.billed = 1 OR b.billed IS NULL OR (b.billed = '1' AND b.bill_process = '3')) /** haroon end **/ ";
+    $where .= " /** haroon start **/ (afabs.billed = 1 OR afabs.billed IS NULL OR (afabs.billed = '1' AND afabs.bill_process = '3')) /** haroon end **/ ";
 
 } else {
     $form_unbilled = "%"; // All
     if ($where) {
         $where .= " ";
     }
-    $where .= " /** haroon start **/ b.code_type like '%' /** haroon end **/ ";
+    $where .= " /** haroon start **/ afabs.code_type like '%' /** haroon end **/ ";
 
 }
     // if ($form_unbilled !== "%") {
@@ -774,10 +774,10 @@ if ($form_unbilled == "on") {
              $newencounter =  $key_newval['encounter'];
              # added this condition to handle the downloading of individual invoices (TLH)
             if ($_POST['form_individual'] ?? '' == 1) {
-                $where .= " OR f.encounter = ? ";
+                $where .= " OR encounter = ? ";
                 array_push($sqlArray, $newencounter);
             } else {
-                $where .= " OR f.pid = ? ";
+                $where .= " OR afabs.pid = ? ";
                 array_push($sqlArray, $newkey);
             }
         }
@@ -791,10 +791,10 @@ if ($form_unbilled == "on") {
         }
 
         if ($form_to_date) {
-            $where .= "f.date >= ? AND f.date <= ? ";
+            $where .= "afabs.date >= ? AND afabs.date <= ? ";
             array_push($sqlArray, $form_date . ' 00:00:00', $form_to_date . ' 23:59:59');
         } else {
-            $where .= "f.date >= ? AND f.date <= ? ";
+            $where .= "afabs.date >= ? AND afabs.date <= ? ";
             array_push($sqlArray, $form_date . ' 00:00:00', $form_date . ' 23:59:59');
         }
     }
@@ -804,7 +804,7 @@ if ($form_unbilled == "on") {
             $where .= " AND ";
         }
 
-        $where .= "f.facility_id = ? ";
+        $where .= "facility_id = ? ";
         array_push($sqlArray, $form_facility);
     }
 
@@ -814,7 +814,7 @@ if ($form_unbilled == "on") {
             $where .= " AND ";
         }
 
-        $where .= "f.provider_id = ? ";
+        $where .= "provider_id = ? ";
         array_push($sqlArray, $form_provider);
     }
 
@@ -823,33 +823,15 @@ if ($form_unbilled == "on") {
     }
 
     # added provider from encounter to the query (TLH)
-    $query = "SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed, " .
-      "f.last_level_closed, f.last_stmt_date, f.stmt_count, f.invoice_refno, f.in_collection, " .
-      "p.fname, p.mname, p.lname, p.street, p.city, p.state, " .
-      "p.postal_code, p.phone_home, p.ss, p.billing_note, " .
-      "p.pubpid, p.DOB, CONCAT(u.lname, ', ', u.fname) AS referrer, " .
-      "( SELECT bill_date FROM billing AS b WHERE " .
-      "b.pid = f.pid AND b.encounter = f.encounter AND " .
-      "b.activity = 1 AND b.code_type != 'COPAY' LIMIT 1) AS bill_date, " .
-      "( SELECT SUM(b.fee) FROM billing AS b WHERE " .
-      "b.pid = f.pid AND b.encounter = f.encounter AND " .
-      "b.activity = 1 AND b.code_type != 'COPAY' ) AS charges, " .
-      "( SELECT SUM(b.fee) FROM billing AS b WHERE " .
-      "b.pid = f.pid AND b.encounter = f.encounter AND " .
-      "b.activity = 1 AND b.code_type = 'COPAY' ) AS copays, " .
-      "( SELECT SUM(s.fee) FROM drug_sales AS s WHERE " .
-      "s.pid = f.pid AND s.encounter = f.encounter ) AS sales, " .
-      "( SELECT SUM(a.pay_amount) FROM ar_activity AS a WHERE " .
-      "a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS payments, " .
-      "( SELECT SUM(a.adj_amount) FROM ar_activity AS a WHERE " .
-      "a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS adjustments " .
-      "FROM form_encounter AS f " .
-      "JOIN patient_data AS p ON p.pid = f.pid " .
-      "/** haroon start **/ JOIN 	billing AS b ON f.pid=b.pid /** haroon end **/" .
-      "LEFT OUTER JOIN users AS u ON u.id = p.ref_providerID " .
-      "LEFT OUTER JOIN users AS w ON w.id = f.provider_id " .
+    $query = "SELECT afabs.id, afabs.date, afabs.pid, afabs.provider_id, afabs.encounter, afabs.charges,afabs.sales,afabs.copays ,afabs.payments,afabs.adjustments,
+     afabs.last_level_billed, afabs.last_level_closed, 
+    afabs.last_stmt_date, afabs.stmt_count, afabs.invoice_refno, afabs.in_collection, afabs.fname, afabs.mname, afabs.lname, 
+    afabs.street, afabs.city, afabs.state, afabs.postal_code, afabs.phone_home, afabs.ss, 
+    afabs.billing_note, afabs.pubpid, afabs.DOB, afabs.referrer from all_facities_all_billing_status afabs  " .
       "WHERE $where " .
-      "ORDER BY f.pid, f.encounter";
+      "ORDER BY afabs.pid, afabs.encounter";
+
+      echo $query;
 
     $eres = sqlStatement($query, $sqlArray);
 
