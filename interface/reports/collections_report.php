@@ -67,6 +67,18 @@ $form_page_y    = $_POST['form_page_y'] ?? '';
 $form_offset_y  = $_POST['form_offset_y'] ?? '';
 $form_y         = $_POST['form_y'] ?? '';
 
+//HAROON_CHANGE_1_START_08262025
+$form_unbilled = isset($_POST['unbilled']) ? $_POST['unbilled'] : 'on';
+
+if ($form_unbilled == "on") {
+    $form_unbilled = "0"; // Unbilled
+} elseif ($form_unbilled == "off") {
+    $form_unbilled = "1"; // Billed
+} else {
+    $form_unbilled = "%"; // All
+}
+//HAROON_CHANGE_1_END_08262025
+
 if (!empty($_POST['form_refresh']) || !empty($_POST['form_export']) || !empty($_POST['form_csvexport'])) {
     if ($is_ins_summary) {
         $form_cb_ssn      = false;
@@ -463,6 +475,12 @@ if (!empty($_POST['form_csvexport'])) {
 <input type='hidden' name='form_y' id='form_y' value='<?php echo attr($form_y); ?>'/>
 <input type='hidden' name='form_clear_ins_debt' id='form_clear_ins_debt' value=''/>
 
+<!-- HAROON_CHANGE_2_START_08262025 -->
+
+<input type='hidden' name='unbilled' value='<?php echo attr($form_unbilled == "0" ? "on" : ""); ?>' />
+
+<!-- HAROON_CHANGE_2_END_08262025  -->
+
 <table>
  <tr>
   <td width=75%>
@@ -648,13 +666,28 @@ if (!empty($_POST['form_csvexport'])) {
                         <td>
                            <input type='text' name='form_age_inc' class='form-control' size='3' value='<?php echo ($form_age_inc) ? attr($form_age_inc) : "30"; ?>' />
                         </td>
-                        <td>
-              <div class="checkbox">
+                            <td>
+                            <div class="checkbox">
                            <label><input type='checkbox' name='form_cb_with_debt'<?php echo ($form_cb_with_debt) ? ' checked' : ''; ?>>
                             <?php echo xlt('Patients with debt') ?></label>
-              </div>
+                            </div>
                         </td>
                     </tr>
+<!-- HAROON_CHANGE_3_START_08262025  -->
+<tr>
+    <td class='col-form-label'>
+        <?php echo xlt('Billing Status'); ?>:
+    </td>
+    <td>
+        <select name="form_unbilled" class="form-control">
+            <option value="on" <?php if ($form_unbilled === "0") echo "selected"; ?>><?php echo xlt('Unbilled'); ?></option>
+            <option value="off" <?php if ($form_unbilled === "1") echo "selected"; ?>><?php echo xlt('Billed'); ?></option>
+            <option value="all" <?php if ($form_unbilled === "%") echo "selected"; ?>><?php echo xlt('All'); ?></option>
+        </select>
+    </td>
+</tr>
+<!-- HAROON_CHANGE_3_END_08262025  -->
+
 
 
                 </table>
@@ -696,6 +729,42 @@ if (!empty($_POST['form_csvexport'])) {
 if (!empty($_POST['form_refresh']) || !empty($_POST['form_export']) || !empty($_POST['form_csvexport'])) {
     $rows = array();
     $where = "";
+// HAROON_CHANGE_4_START_08262025 
+    $form_unbilled = $_POST['form_unbilled'] ?? 'on';
+
+if ($form_unbilled == "on") {
+    $form_unbilled = "0"; // Unbilled
+    if ($where) {
+        $where .= " ";
+    }
+    $where .= " /** haroon start **/ (b.billed = 0 OR b.billed IS NULL OR (b.billed = '0' AND b.bill_process = '3')) /** haroon end **/ ";
+
+} elseif ($form_unbilled == "off") {
+    $form_unbilled = "1"; // Billed
+    if ($where) {
+        $where .= " ";
+    }
+    $where .= " /** haroon start **/ (b.billed = 1 OR b.billed IS NULL OR (b.billed = '1' AND b.bill_process = '3')) /** haroon end **/ ";
+
+} else {
+    $form_unbilled = "%"; // All
+    if ($where) {
+        $where .= " ";
+    }
+    $where .= " /** haroon start **/ b.code_type like '%' /** haroon end **/ ";
+
+}
+    // if ($form_unbilled !== "%") {
+    // if ($where) {
+    //     $where .= " AND ";
+    // }
+    // $where .= " /** haroon start **/ AND (b.billed = ? OR b.billed IS NULL OR (b.billed = '1' AND b.bill_process = '3')) /** haroon end **/ ";
+    // // $where .= "EXISTS (SELECT 1 FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.billed = ?)";
+    // $sqlArray[] = $form_unbilled;
+
+
+//HAROON_CHANGE_4_END_08262025 
+
     $sqlArray = array();
     if ($_POST['form_export'] || $_POST['form_csvexport']) {
         $where = "( 1 = 2";
@@ -776,6 +845,7 @@ if (!empty($_POST['form_refresh']) || !empty($_POST['form_export']) || !empty($_
       "a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS adjustments " .
       "FROM form_encounter AS f " .
       "JOIN patient_data AS p ON p.pid = f.pid " .
+      "/** haroon start **/ JOIN 	billing AS b ON f.pid=b.pid /** haroon end **/" .
       "LEFT OUTER JOIN users AS u ON u.id = p.ref_providerID " .
       "LEFT OUTER JOIN users AS w ON w.id = f.provider_id " .
       "WHERE $where " .

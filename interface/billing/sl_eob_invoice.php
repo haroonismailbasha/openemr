@@ -555,7 +555,7 @@ $bnrow = sqlQuery("select billing_note from form_encounter where pid = ? AND enc
                                 $last_level_closed = 0 + $ferow['last_level_closed'];
                             ?>
                             <label class="radio-inline">
-                                <input <?php echo $last_level_closed === 0 ? attr('checked') : ''; ?> name='form_insurance' onclick='setins("Ins1")' type='radio'
+                                <input name='form_insurance' onclick='setins("Ins1")' type='radio'
                                     value='Ins1' /><?php echo xlt('Ins1') ?>
                             </label>
                             <label class="radio-inline">

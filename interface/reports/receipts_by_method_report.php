@@ -290,6 +290,48 @@ $form_proc_code = $tmp_code_array[1] ?? null;
     </style>
 
     <script>
+        function downloadCSV() {
+    var table = document.getElementById('mymaintable');
+    if (!table) return;
+
+    var rows = Array.from(table.querySelectorAll('tr'));
+    var csv = rows.map(function(row) {
+        var cols = Array.from(row.querySelectorAll('th,td'));
+        return cols.map(function(col) {
+            // Remove links, buttons, and inputs for CSV export
+            var cell = col.cloneNode(true);
+            Array.from(cell.querySelectorAll('a,button,input')).forEach(el => el.remove());
+            // Escape double quotes
+            var text = col.innerText.replace(/"/g, '""');
+            // Wrap in quotes if contains comma or newline
+            if (text.search(/("|,|\n)/g) >= 0) {
+                text = '"' + text + '"';
+            }
+            return text;
+        }).join(',');
+    }).join('\n');
+
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var url = window.URL.createObjectURL(blob);
+
+    var a = document.createElement('a');
+    a.setAttribute('href', url);
+    a.setAttribute('download', 'receipts_report.csv');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    var btn = document.getElementById('downloadcsv');
+    if (btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            downloadCSV();
+        });
+    }
+});
         $(function () {
             oeFixedHeaderSetup(document.getElementById('mymaintable'));
             var win = top.printLogSetup ? top : opener.top;
@@ -458,6 +500,9 @@ $form_proc_code = $tmp_code_array[1] ?? null;
             <?php if (!empty($_POST['form_refresh'])) { ?>
             <a href='#' class='btn btn-secondary btn-print' id='printbutton'>
                     <?php echo xlt('Print'); ?>
+            </a>
+            <a href='#' class='btn btn-secondary btn-download' id='downloadcsv'>
+                    <?php echo xlt('Export to CSV'); ?>
             </a>
             <?php } ?>
         </div>
