@@ -245,7 +245,7 @@ function endPatient($ptrow)
           echo "&nbsp;</td>\n";
           echo "  <td class='detotal' colspan='$final_colspan'>&nbsp;Total Patient Balance:</td>\n";
             ***************************************************************/
-            echo "  <td class='detotal' colspan='" . attr(($initial_colspan + $final_colspan)) .
+            echo "  <td class='detotal' colspan='" . attr(($initial_colspan + $final_colspan + 1)) .
             "'>&nbsp;" . xlt('Total Patient Balance') . ":</td>\n";
             /**************************************************************/
             if ($form_age_cols) {
@@ -402,6 +402,51 @@ if (!empty($_POST['form_csvexport'])) {
     </style>
 
     <script>
+        function downloadCSV() {
+            var table = document.getElementById('mymaintable');
+            if (!table) return;
+
+            var rows = Array.from(table.querySelectorAll('tr'));
+            var csv = rows.map(function(row) {
+                var cols = Array.from(row.querySelectorAll('th,td'));
+                return cols.map(function(col) {
+                    // Remove links, buttons, and inputs for CSV export
+                    var cell = col.cloneNode(true);
+                    Array.from(cell.querySelectorAll('a,button,input')).forEach(el => el.remove());
+                    // Escape double quotes
+                    var text = col.innerText.replace(/"/g, '""');
+                    // Wrap in quotes if contains comma or newline
+                    if (text.search(/("|,|\n)/g) >= 0) {
+                        text = '"' + text + '"';
+                    }
+                    return text;
+                }).join(',');
+            }).join('\n');
+
+            var blob = new Blob([csv], {
+                type: 'text/csv'
+            });
+            var url = window.URL.createObjectURL(blob);
+
+            var a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'receipts_report.csv');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            var btn = document.getElementById('downloadcsv');
+            if (btn) {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    downloadCSV();
+                });
+            }
+        });
+
         function reSubmit() {
             $("#form_refresh").attr("value","true");
             $("#form_export").val("");
@@ -569,7 +614,7 @@ if (!empty($_POST['form_csvexport'])) {
                         <td>
                            <select name='form_category' class='form-control'>
                         <?php
-                        foreach (array('Open' => xl('Open'),'Due Pt' => xl('Due Pt'),'Due Ins' => xl('Due Ins'),'Ins Summary' => xl('Ins Summary'),'Credits' => xl('Credits'),'All' => xl('All')) as $key => $value) {
+                        foreach (array('Open' => 'Open with unbilled','Due Pt' => xl('Due Pt'),'Due Ins' => xl('Due Ins'),'Ins Summary' => xl('Ins Summary'),'Credits' => xl('Credits'),'UnBilled' => 'UnBilled','All' => xl('All')) as $key => $value) {
                             echo "    <option value='" . attr($key) . "'";
                             if ($form_category == $key) {
                                 echo " selected";
@@ -729,7 +774,7 @@ if (!empty($_POST['form_csvexport'])) {
 if (!empty($_POST['form_refresh']) || !empty($_POST['form_export']) || !empty($_POST['form_csvexport'])) {
     $rows = array();
     $where = "";
-// HAROON_CHANGE_4_START_08262025 
+// HAROON_CHANGE_4_START_08262025
     $form_unbilled = $_POST['form_unbilled'] ?? 'on';
 
 if ($form_unbilled == "on") {
@@ -737,33 +782,27 @@ if ($form_unbilled == "on") {
     if ($where) {
         $where .= " ";
     }
-    $where .= " /** haroon start **/ (afabs.billed = 0 OR afabs.billed IS NULL OR (afabs.billed = '0' AND afabs.bill_process = '3')) /** haroon end **/ ";
+    $where .= " /** haroon start **/ (b.billed = 0 OR b.billed IS NULL OR (b.billed = '0' AND b.bill_process = '3')) /** haroon end **/ ";
 
 } elseif ($form_unbilled == "off") {
     $form_unbilled = "1"; // Billed
     if ($where) {
         $where .= " ";
     }
-    $where .= " /** haroon start **/ (afabs.billed = 1 OR afabs.billed IS NULL OR (afabs.billed = '1' AND afabs.bill_process = '3')) /** haroon end **/ ";
+    $where .= " /** haroon start **/ (b.billed = 1 OR b.billed IS NULL OR (b.billed = '1' AND b.bill_process = '3')) /** haroon end **/ ";
 
 } else {
     $form_unbilled = "%"; // All
     if ($where) {
         $where .= " ";
     }
-    $where .= " /** haroon start **/ afabs.code_type like '%' /** haroon end **/ ";
+    $where .= " /** haroon start **/ b.code_type like '%' /** haroon end **/ ";
 
 }
-    // if ($form_unbilled !== "%") {
-    // if ($where) {
-    //     $where .= " AND ";
-    // }
-    // $where .= " /** haroon start **/ AND (b.billed = ? OR b.billed IS NULL OR (b.billed = '1' AND b.bill_process = '3')) /** haroon end **/ ";
-    // // $where .= "EXISTS (SELECT 1 FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.billed = ?)";
-    // $sqlArray[] = $form_unbilled;
 
 
-//HAROON_CHANGE_4_END_08262025 
+
+//HAROON_CHANGE_4_END_08262025
 
     $sqlArray = array();
     if ($_POST['form_export'] || $_POST['form_csvexport']) {
@@ -774,10 +813,10 @@ if ($form_unbilled == "on") {
              $newencounter =  $key_newval['encounter'];
              # added this condition to handle the downloading of individual invoices (TLH)
             if ($_POST['form_individual'] ?? '' == 1) {
-                $where .= " OR encounter = ? ";
+                $where .= " OR f.encounter = ? ";
                 array_push($sqlArray, $newencounter);
             } else {
-                $where .= " OR afabs.pid = ? ";
+                $where .= " OR f.pid = ? ";
                 array_push($sqlArray, $newkey);
             }
         }
@@ -791,10 +830,10 @@ if ($form_unbilled == "on") {
         }
 
         if ($form_to_date) {
-            $where .= "afabs.date >= ? AND afabs.date <= ? ";
+            $where .= "f.date >= ? AND f.date <= ? ";
             array_push($sqlArray, $form_date . ' 00:00:00', $form_to_date . ' 23:59:59');
         } else {
-            $where .= "afabs.date >= ? AND afabs.date <= ? ";
+            $where .= "f.date >= ? AND f.date <= ? ";
             array_push($sqlArray, $form_date . ' 00:00:00', $form_date . ' 23:59:59');
         }
     }
@@ -804,7 +843,7 @@ if ($form_unbilled == "on") {
             $where .= " AND ";
         }
 
-        $where .= "facility_id = ? ";
+        $where .= "f.facility_id = ? ";
         array_push($sqlArray, $form_facility);
     }
 
@@ -814,7 +853,7 @@ if ($form_unbilled == "on") {
             $where .= " AND ";
         }
 
-        $where .= "provider_id = ? ";
+        $where .= "f.provider_id = ? ";
         array_push($sqlArray, $form_provider);
     }
 
@@ -823,15 +862,84 @@ if ($form_unbilled == "on") {
     }
 
     # added provider from encounter to the query (TLH)
-    $query = "SELECT afabs.id, afabs.date, afabs.pid, afabs.provider_id, afabs.encounter, afabs.charges,afabs.sales,afabs.copays ,afabs.payments,afabs.adjustments,
-     afabs.last_level_billed, afabs.last_level_closed, 
-    afabs.last_stmt_date, afabs.stmt_count, afabs.invoice_refno, afabs.in_collection, afabs.fname, afabs.mname, afabs.lname, 
-    afabs.street, afabs.city, afabs.state, afabs.postal_code, afabs.phone_home, afabs.ss, 
-    afabs.billing_note, afabs.pubpid, afabs.DOB, afabs.referrer from all_facities_all_billing_status afabs  " .
+    $query = "SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed, " .
+      "f.last_level_closed, f.last_stmt_date, f.stmt_count, f.invoice_refno, f.in_collection, " .
+      "p.fname, p.mname, p.lname, p.street, p.city, p.state, " .
+      "p.postal_code, p.phone_home, p.ss, p.billing_note, " .
+      "p.pubpid, p.DOB, CONCAT(u.lname, ', ', u.fname) AS referrer, " .
+      "( SELECT bill_date FROM billing AS b WHERE " .
+      "b.pid = f.pid AND b.encounter = f.encounter AND " .
+      "b.activity = 1 AND b.code_type != 'COPAY' LIMIT 1) AS bill_date, " .
+      "( SELECT SUM(b.fee) FROM billing AS b WHERE " .
+      "b.pid = f.pid AND b.encounter = f.encounter AND " .
+      "b.activity = 1 AND b.code_type != 'COPAY' ) AS charges, " .
+      "( SELECT SUM(b.fee) FROM billing AS b WHERE " .
+      "b.pid = f.pid AND b.encounter = f.encounter AND " .
+      "b.activity = 1 AND b.code_type = 'COPAY' ) AS copays, " .
+      "( SELECT SUM(s.fee) FROM drug_sales AS s WHERE " .
+      "s.pid = f.pid AND s.encounter = f.encounter ) AS sales, " .
+      "( SELECT SUM(a.pay_amount) FROM ar_activity AS a WHERE " .
+      "a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS payments, " .
+      "( SELECT SUM(a.adj_amount) FROM ar_activity AS a WHERE " .
+      "a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS adjustments, " .
+      "cpt.cpt_codes ".
+      "FROM form_encounter AS f " .
+      "JOIN patient_data AS p ON p.pid = f.pid " .
+      "/** haroon start **/ JOIN 	billing AS b ON f.pid=b.pid /** haroon end **/" .
+      "LEFT OUTER JOIN users AS u ON u.id = f.referring_provider_id " .
+      "LEFT OUTER JOIN users AS w ON w.id = f.provider_id " .
+      "LEFT JOIN (
+            SELECT
+                pid,
+                encounter,
+                GROUP_CONCAT(DISTINCT code ORDER BY code SEPARATOR ',') AS cpt_codes
+            FROM billing
+            WHERE code_type = 'CPT4' AND activity = 1
+            GROUP BY pid, encounter
+        ) cpt ON cpt.pid = f.pid AND cpt.encounter = f.encounter ".
       "WHERE $where " .
-      "ORDER BY afabs.pid, afabs.encounter";
+      "ORDER BY f.pid, f.encounter";
 
-      echo $query;
+      $records_count_query = "select count(*) from (SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed, " .
+      "f.last_level_closed, f.last_stmt_date, f.stmt_count, f.invoice_refno, f.in_collection, " .
+      "p.fname, p.mname, p.lname, p.street, p.city, p.state, " .
+      "p.postal_code, p.phone_home, p.ss, p.billing_note, " .
+      "p.pubpid, p.DOB, CONCAT(u.lname, ', ', u.fname) AS referrer, " .
+      "( SELECT bill_date FROM billing AS b WHERE " .
+      "b.pid = f.pid AND b.encounter = f.encounter AND " .
+      "b.activity = 1 AND b.code_type != 'COPAY' LIMIT 1) AS bill_date, " .
+      "( SELECT SUM(b.fee) FROM billing AS b WHERE " .
+      "b.pid = f.pid AND b.encounter = f.encounter AND " .
+      "b.activity = 1 AND b.code_type != 'COPAY' ) AS charges, " .
+      "( SELECT SUM(b.fee) FROM billing AS b WHERE " .
+      "b.pid = f.pid AND b.encounter = f.encounter AND " .
+      "b.activity = 1 AND b.code_type = 'COPAY' ) AS copays, " .
+      "( SELECT SUM(s.fee) FROM drug_sales AS s WHERE " .
+      "s.pid = f.pid AND s.encounter = f.encounter ) AS sales, " .
+      "( SELECT SUM(a.pay_amount) FROM ar_activity AS a WHERE " .
+      "a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS payments, " .
+      "( SELECT SUM(a.adj_amount) FROM ar_activity AS a WHERE " .
+      "a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS adjustments, " .
+      "cpt.cpt_codes ".
+      "FROM form_encounter AS f " .
+      "JOIN patient_data AS p ON p.pid = f.pid " .
+      "/** haroon start **/ JOIN 	billing AS b ON f.pid=b.pid /** haroon end **/" .
+      "LEFT OUTER JOIN users AS u ON u.id = f.referring_provider_id " .
+      "LEFT OUTER JOIN users AS w ON w.id = f.provider_id " .
+      "LEFT JOIN (
+            SELECT
+                pid,
+                encounter,
+                GROUP_CONCAT(DISTINCT code ORDER BY code SEPARATOR ',') AS cpt_codes
+            FROM billing
+            WHERE code_type = 'CPT4' AND activity = 1
+            GROUP BY pid, encounter
+        ) cpt ON cpt.pid = f.pid AND cpt.encounter = f.encounter ".
+      "WHERE $where " .
+      "ORDER BY f.pid, f.encounter) as sq";
+    
+      
+    
 
     $eres = sqlStatement($query, $sqlArray);
 
@@ -841,6 +949,12 @@ if ($form_unbilled == "on") {
         $pt_balance = $erow['charges'] + $erow['sales'] + $erow['copays'] - $erow['payments'] - $erow['adjustments'];
         $pt_balance = 0 + sprintf("%.2f", $pt_balance); // yes this seems to be necessary
         $svcdate = substr($erow['date'], 0, 10);
+        // $cptquery = "SELECT * FROM billing WHERE code_type = ? AND encounter = ?";
+        // $cres = sqlStatement($cptquery, array('CPT4',$encounter_id));
+        // $codes = array();
+        // while ($cptData = sqlFetchArray($cres)){
+        //     $codes[] = $cptData['code'];
+        // }
 
         if ($form_cb_with_debt && $pt_balance <= 0) {
             unset($erow);
@@ -920,6 +1034,7 @@ if ($form_unbilled == "on") {
         $row['pubpid']    = $erow['pubpid'];
         $row['billnote']  = $erow['billing_note'];
         $row['referrer']  = $erow['referrer'];
+        $row['cpt_codes']  = implode('<br>',explode(',', $erow['cpt_codes']));
         $row['provider']  = $erow['provider_id'];
         $row['irnumber']  = $erow['invoice_refno'];
         $row['bill_date'] = $erow['bill_date'];  // use this for ins_due claim age date
@@ -1071,6 +1186,7 @@ if ($form_unbilled == "on") {
             echo csvEscape(xl('Invoice')) . ',';
             echo csvEscape(xl('DOS')) . ',';
             echo csvEscape(xl('Referrer')) . ',';
+            echo csvEscape(xl('CPT')) . ',';
             echo csvEscape(xl('Provider')) . ',';
             echo csvEscape(xl('Charge')) . ',';
             echo csvEscape(xl('Adjust')) . ',';
@@ -1130,6 +1246,7 @@ if ($form_unbilled == "on") {
         <?php if ($form_cb_referrer) { ?>
     <th>&nbsp;<?php echo xlt('Referrer')?></th>
     <?php } ?>
+    <th>&nbsp;<?php echo xlt('CPT')?></th>
         <?php if (!$is_ins_summary) { ?>
     <th>&nbsp;<?php echo xlt('Invoice') ?></th>
     <th>&nbsp;<?php echo xlt('Svc Date') ?></th>
@@ -1289,6 +1406,7 @@ if ($form_unbilled == "on") {
                 if ($form_cb_referrer) {
                     echo "  <td class='detail'>&nbsp;" . text($row['referrer']) . "</td>\n";
                 }
+                echo "  <td class='detail'>" . $row['cpt_codes'] . "</td>\n";
             } else { // end $ptrow['count'] == 1
                 echo "  <td class='detail' colspan='" . attr($initial_colspan) . "'>";
                 echo "&nbsp;</td>\n";
@@ -1299,10 +1417,8 @@ if ($form_unbilled == "on") {
             <?php echo empty($row['irnumber']) ? text($row['invnumber']) : text($row['irnumber']); ?></a>
   </td>
   <td class="detail">
-   &nbsp;<?php echo "<input title='" . xla('To encounter') . "' type='button' class='btn btn-sm btn-secondary' value='" .
-                   attr(oeFormatShortDate($row['dos'])) . "' onClick='toEncounter(" .
-                   attr_js($row['pid']) . ", " . attr_js($row['encounter']) .
-                   "); ' />"; ?>
+   &nbsp;<?php echo attr(oeFormatShortDate($row['dos'])); ?>
+
   </td>
             <?php if ($form_cb_adate) { ?>
   <td class='detail'>
@@ -1345,11 +1461,11 @@ if ($form_unbilled == "on") {
   </td>
   <td class="detail" align="center">
             <?php
-            if ($in_collections) {
-                echo "   <span class='font-weight-bold text-danger'>IC</span>\n";
-            } else {
+            // if ($in_collections) {
+            //     echo "   <span class='font-weight-bold text-danger'>IC</span>\n";
+            // } else {
                 echo "   <input type='checkbox' name='form_cb[" .  attr($row['invnumber'])  . "]' />\n";
-            }
+            // }
             ?>
   </td>
             <?php
