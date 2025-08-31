@@ -577,7 +577,10 @@ if (!empty($_POST['form_csvexport'])) {
     header("Content-Disposition: attachment; filename=collections_report.csv");
     header("Content-Description: File Transfer");
     insuranceSelect();
-} else if (!empty($_POST['download_csv'])) {
+}
+// HAROON_CHANGE_REPORT_OPTIMIZATION_START_08312025
+// In the case of rows more than the limit then download will be forced.
+else if (!empty($_POST['download_csv'])) {
     $rows = array();
             $where = "";
             // HAROON_CHANGE_4_START_08262025
@@ -664,7 +667,7 @@ if (!empty($_POST['form_csvexport'])) {
                 $where = "1 = 1";
             }
 
-            // Check for any previous output
+
     if (ob_get_level()) {
         $existingOutput = ob_get_contents();
         if (!empty($existingOutput)) {
@@ -672,12 +675,10 @@ if (!empty($_POST['form_csvexport'])) {
         }
     }
 
-    // Check if headers already sent
     if (headers_sent($file, $line)) {
         die("Error: Headers already sent in $file on line $line");
     }
 
-    // Try the download
     $timestamp = date('Y-m-d_H-i-s');
     $sqlArray = array();
     $query = "SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed, " .
@@ -724,18 +725,12 @@ if (!empty($_POST['form_csvexport'])) {
     $countRow = sqlQuery($records_count_query, $sqlArray);
     $records_count = array_values($countRow)[0];
 
-    if ($records_count > 1) {
-        // echo "<script> alert('Im inside');</script>";
-        // Generate unique filename with timestamp
+    if ($records_count > 100) {
         $filename = "collections_export_{$timestamp}.csv";
-        // Path to save the CSV file on the server (use a secure path)
         chdir("../../sites/default/documents/temp/");
         $filePath = getcwd() . "/" . $filename;
-        // downloadQueryToCSV($query, $sqlArray, 'report.csv');
-        // Disable error reporting
         error_reporting(0);
 
-        // Clear all output buffers
         while (ob_get_level()) {
             ob_end_clean();
         }
@@ -747,13 +742,10 @@ if (!empty($_POST['form_csvexport'])) {
         header('Expires: 0');
         header('Pragma: no-cache');
 
-        // Open output stream
         $output = fopen('php://output', 'w');
 
-        // Add BOM for UTF-8 Excel compatibility
         fprintf($output, "\xEF\xBB\xBF");
 
-        // Get results from database
         $result = sqlStatement($query, $sqlArray);
 
         $first = true;
@@ -764,35 +756,23 @@ if (!empty($_POST['form_csvexport'])) {
                 $first = false;
             }
 
-            // Clean row data
             $cleanRow = array_map(function ($value) {
                 if ($value === null) return '';
                 return str_replace(array("\r", "\n"), ' ', $value);
             }, $row);
 
-            // Output row
             fputcsv($output, $cleanRow);
         }
 
-        // Close output stream
         fclose($output);
-        // exit();
-
-        // Download through browser
-        // debugDownloadIssue($query, $sqlArray, "test.csv");
-        // downloadQueryToCSV($query, $sqlArray, $filename);
-        //START
-
-        //END
         exit;
     } else {
         echo "<script>alert('No records found to export.');</script>";
         exit;
     }
 
+    // HAROON_CHANGE_REPORT_OPTIMIZATION_END_08312025
 
-
-    // debugDownloadIssue($query, $sqlArray, "test.csv");
 } else {
 ?>
     <html>
