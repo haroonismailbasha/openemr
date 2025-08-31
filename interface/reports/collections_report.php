@@ -79,6 +79,7 @@ if ($form_unbilled == "on") {
 }
 //HAROON_CHANGE_1_END_08262025
 
+
 if (!empty($_POST['form_refresh']) || !empty($_POST['form_export']) || !empty($_POST['form_csvexport'])) {
     if ($is_ins_summary) {
         $form_cb_ssn      = false;
@@ -567,6 +568,151 @@ function insuranceSelect()
 }
 
 
+//decide which route to take start
+if (!empty($_POST['form_refresh'])) {
+    $rows = array();
+    $rows = array();
+    $where = "";
+    // HAROON_CHANGE_4_START_08262025
+    $form_unbilled = $_POST['form_unbilled'] ?? 'on';
+
+    if ($form_unbilled == "on") {
+        $form_unbilled = "0"; // Unbilled
+        if ($where) {
+            $where .= " ";
+        }
+        $where .= " /** haroon start **/ (b.billed = 0 OR b.billed IS NULL OR (b.billed = '0' AND b.bill_process = '3')) /** haroon end **/ ";
+    } elseif ($form_unbilled == "off") {
+        $form_unbilled = "1"; // Billed
+        if ($where) {
+            $where .= " ";
+        }
+        $where .= " /** haroon start **/ (b.billed = 1 OR b.billed IS NULL OR (b.billed = '1' AND b.bill_process = '3')) /** haroon end **/ ";
+    } else {
+        $form_unbilled = "%"; // All
+        if ($where) {
+            $where .= " ";
+        }
+        $where .= " /** haroon start **/ b.code_type like '%' /** haroon end **/ ";
+    }
+
+
+
+    //HAROON_CHANGE_4_END_08262025
+
+    $sqlArray = array();
+    if ($_POST['form_export'] || $_POST['form_csvexport']) {
+        $where = "( 1 = 2";
+        foreach ($_POST['form_cb'] as $key => $value) {
+            list($key_newval['pid'], $key_newval['encounter']) = explode(".", $key);
+            $newkey = $key_newval['pid'];
+            $newencounter =  $key_newval['encounter'];
+            # added this condition to handle the downloading of individual invoices (TLH)
+            if ($_POST['form_individual'] ?? '' == 1) {
+                $where .= " OR f.encounter = ? ";
+                array_push($sqlArray, $newencounter);
+            } else {
+                $where .= " OR f.pid = ? ";
+                array_push($sqlArray, $newkey);
+            }
+        }
+
+        $where .= ' )';
+    }
+
+    if ($form_date) {
+        if ($where) {
+            $where .= " AND ";
+        }
+
+        if ($form_to_date) {
+            $where .= "f.date >= ? AND f.date <= ? ";
+            array_push($sqlArray, $form_date . ' 00:00:00', $form_to_date . ' 23:59:59');
+        } else {
+            $where .= "f.date >= ? AND f.date <= ? ";
+            array_push($sqlArray, $form_date . ' 00:00:00', $form_date . ' 23:59:59');
+        }
+    }
+
+    if ($form_facility) {
+        if ($where) {
+            $where .= " AND ";
+        }
+
+        $where .= "f.facility_id = ? ";
+        array_push($sqlArray, $form_facility);
+    }
+
+    # added for filtering by provider (TLH)
+    if ($form_provider) {
+        if ($where) {
+            $where .= " AND ";
+        }
+
+        $where .= "f.provider_id = ? ";
+        array_push($sqlArray, $form_provider);
+    }
+
+    if (! $where) {
+        $where = "1 = 1";
+    }
+
+    $query = "SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed, " .
+        "f.last_level_closed, f.last_stmt_date, f.stmt_count, f.invoice_refno, f.in_collection, " .
+        "p.fname, p.mname, p.lname, p.street, p.city, p.state, " .
+        "p.postal_code, p.phone_home, p.ss, p.billing_note, " .
+        "p.pubpid, p.DOB, CONCAT(u.lname, ', ', u.fname) AS referrer, " .
+        "( SELECT bill_date FROM billing AS b WHERE " .
+        "b.pid = f.pid AND b.encounter = f.encounter AND " .
+        "b.activity = 1 AND b.code_type != 'COPAY' LIMIT 1) AS bill_date, " .
+        "( SELECT SUM(b.fee) FROM billing AS b WHERE " .
+        "b.pid = f.pid AND b.encounter = f.encounter AND " .
+        "b.activity = 1 AND b.code_type != 'COPAY' ) AS charges, " .
+        "( SELECT SUM(b.fee) FROM billing AS b WHERE " .
+        "b.pid = f.pid AND b.encounter = f.encounter AND " .
+        "b.activity = 1 AND b.code_type = 'COPAY' ) AS copays, " .
+        "( SELECT SUM(s.fee) FROM drug_sales AS s WHERE " .
+        "s.pid = f.pid AND s.encounter = f.encounter ) AS sales, " .
+        "( SELECT SUM(a.pay_amount) FROM ar_activity AS a WHERE " .
+        "a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS payments, " .
+        "( SELECT SUM(a.adj_amount) FROM ar_activity AS a WHERE " .
+        "a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS adjustments, " .
+        "cpt.cpt_codes " .
+        "FROM form_encounter AS f " .
+        "JOIN patient_data AS p ON p.pid = f.pid " .
+        "/** haroon start **/ JOIN 	billing AS b ON f.pid=b.pid /** haroon end **/" .
+        "LEFT OUTER JOIN users AS u ON u.id = f.referring_provider_id " .
+        "LEFT OUTER JOIN users AS w ON w.id = f.provider_id " .
+        "LEFT JOIN (
+            SELECT
+                pid,
+                encounter,
+                GROUP_CONCAT(DISTINCT code ORDER BY code SEPARATOR ',') AS cpt_codes
+            FROM billing
+            WHERE code_type = 'CPT4' AND activity = 1
+            GROUP BY pid, encounter
+            ) cpt ON cpt.pid = f.pid AND cpt.encounter = f.encounter " .
+        "WHERE $where " .
+        "ORDER BY f.pid, f.encounter";
+
+    $eres = sqlStatement($query, $sqlArray);
+
+    $records_count_query = "select count(*) from (" . $query . ") as sub";
+    $countRow = sqlQuery($records_count_query, $sqlArray);
+    $records_count = array_values($countRow)[0];
+
+    if ($records_count <= 500) {
+        $_POST['download_csv'] = '';
+    } else if ($records_count == 0) {
+        echo "<script>alert('No records found to export.');</script>";
+        exit;
+    } else {
+        $_POST['download_csv'] = '1';
+    }
+}
+//decide which route to take end
+
+
 
 // In the case of CSV export only, a download will be forced.
 if (!empty($_POST['form_csvexport'])) {
@@ -582,90 +728,90 @@ if (!empty($_POST['form_csvexport'])) {
 // In the case of rows more than the limit then download will be forced.
 else if (!empty($_POST['download_csv'])) {
     $rows = array();
-            $where = "";
-            // HAROON_CHANGE_4_START_08262025
-            $form_unbilled = $_POST['form_unbilled'] ?? 'on';
+    $where = "";
+    // HAROON_CHANGE_4_START_08262025
+    $form_unbilled = $_POST['form_unbilled'] ?? 'on';
 
-            if ($form_unbilled == "on") {
-                $form_unbilled = "0"; // Unbilled
-                if ($where) {
-                    $where .= " ";
-                }
-                $where .= " /** haroon start **/ (b.billed = 0 OR b.billed IS NULL OR (b.billed = '0' AND b.bill_process = '3')) /** haroon end **/ ";
-            } elseif ($form_unbilled == "off") {
-                $form_unbilled = "1"; // Billed
-                if ($where) {
-                    $where .= " ";
-                }
-                $where .= " /** haroon start **/ (b.billed = 1 OR b.billed IS NULL OR (b.billed = '1' AND b.bill_process = '3')) /** haroon end **/ ";
+    if ($form_unbilled == "on") {
+        $form_unbilled = "0"; // Unbilled
+        if ($where) {
+            $where .= " ";
+        }
+        $where .= " /** haroon start **/ (b.billed = 0 OR b.billed IS NULL OR (b.billed = '0' AND b.bill_process = '3')) /** haroon end **/ ";
+    } elseif ($form_unbilled == "off") {
+        $form_unbilled = "1"; // Billed
+        if ($where) {
+            $where .= " ";
+        }
+        $where .= " /** haroon start **/ (b.billed = 1 OR b.billed IS NULL OR (b.billed = '1' AND b.bill_process = '3')) /** haroon end **/ ";
+    } else {
+        $form_unbilled = "%"; // All
+        if ($where) {
+            $where .= " ";
+        }
+        $where .= " /** haroon start **/ b.code_type like '%' /** haroon end **/ ";
+    }
+
+
+
+    //HAROON_CHANGE_4_END_08262025
+
+    $sqlArray = array();
+    if ($_POST['form_export'] || $_POST['form_csvexport']) {
+        $where = "( 1 = 2";
+        foreach ($_POST['form_cb'] as $key => $value) {
+            list($key_newval['pid'], $key_newval['encounter']) = explode(".", $key);
+            $newkey = $key_newval['pid'];
+            $newencounter =  $key_newval['encounter'];
+            # added this condition to handle the downloading of individual invoices (TLH)
+            if ($_POST['form_individual'] ?? '' == 1) {
+                $where .= " OR f.encounter = ? ";
+                array_push($sqlArray, $newencounter);
             } else {
-                $form_unbilled = "%"; // All
-                if ($where) {
-                    $where .= " ";
-                }
-                $where .= " /** haroon start **/ b.code_type like '%' /** haroon end **/ ";
+                $where .= " OR f.pid = ? ";
+                array_push($sqlArray, $newkey);
             }
+        }
 
+        $where .= ' )';
+    }
 
+    if ($form_date) {
+        if ($where) {
+            $where .= " AND ";
+        }
 
-            //HAROON_CHANGE_4_END_08262025
+        if ($form_to_date) {
+            $where .= "f.date >= ? AND f.date <= ? ";
+            array_push($sqlArray, $form_date . ' 00:00:00', $form_to_date . ' 23:59:59');
+        } else {
+            $where .= "f.date >= ? AND f.date <= ? ";
+            array_push($sqlArray, $form_date . ' 00:00:00', $form_date . ' 23:59:59');
+        }
+    }
 
-            $sqlArray = array();
-            if ($_POST['form_export'] || $_POST['form_csvexport']) {
-                $where = "( 1 = 2";
-                foreach ($_POST['form_cb'] as $key => $value) {
-                    list($key_newval['pid'], $key_newval['encounter']) = explode(".", $key);
-                    $newkey = $key_newval['pid'];
-                    $newencounter =  $key_newval['encounter'];
-                    # added this condition to handle the downloading of individual invoices (TLH)
-                    if ($_POST['form_individual'] ?? '' == 1) {
-                        $where .= " OR f.encounter = ? ";
-                        array_push($sqlArray, $newencounter);
-                    } else {
-                        $where .= " OR f.pid = ? ";
-                        array_push($sqlArray, $newkey);
-                    }
-                }
+    if ($form_facility) {
+        if ($where) {
+            $where .= " AND ";
+        }
 
-                $where .= ' )';
-            }
+        $where .= "f.facility_id = ? ";
+        array_push($sqlArray, $form_facility);
+    }
 
-            if ($form_date) {
-                if ($where) {
-                    $where .= " AND ";
-                }
+    # added for filtering by provider (TLH)
+    if ($form_provider) {
+        if ($where) {
+            $where .= " AND ";
+        }
 
-                if ($form_to_date) {
-                    $where .= "f.date >= ? AND f.date <= ? ";
-                    array_push($sqlArray, $form_date . ' 00:00:00', $form_to_date . ' 23:59:59');
-                } else {
-                    $where .= "f.date >= ? AND f.date <= ? ";
-                    array_push($sqlArray, $form_date . ' 00:00:00', $form_date . ' 23:59:59');
-                }
-            }
+        $where .= "f.provider_id = ? ";
+        array_push($sqlArray, $form_provider);
+    }
 
-            if ($form_facility) {
-                if ($where) {
-                    $where .= " AND ";
-                }
-
-                $where .= "f.facility_id = ? ";
-                array_push($sqlArray, $form_facility);
-            }
-
-            # added for filtering by provider (TLH)
-            if ($form_provider) {
-                if ($where) {
-                    $where .= " AND ";
-                }
-
-                $where .= "f.provider_id = ? ";
-                array_push($sqlArray, $form_provider);
-            }
-
-            if (! $where) {
-                $where = "1 = 1";
-            }
+    if (! $where) {
+        $where = "1 = 1";
+    }
 
 
     if (ob_get_level()) {
@@ -682,32 +828,32 @@ else if (!empty($_POST['download_csv'])) {
     $timestamp = date('Y-m-d_H-i-s');
     $sqlArray = array();
     $query = "SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed, " .
-                "f.last_level_closed, f.last_stmt_date, f.stmt_count, f.invoice_refno, f.in_collection, " .
-                "p.fname, p.mname, p.lname, p.street, p.city, p.state, " .
-                "p.postal_code, p.phone_home, p.ss, p.billing_note, " .
-                "p.pubpid, p.DOB, CONCAT(u.lname, ', ', u.fname) AS referrer, " .
-                "( SELECT bill_date FROM billing AS b WHERE " .
-                "b.pid = f.pid AND b.encounter = f.encounter AND " .
-                "b.activity = 1 AND b.code_type != 'COPAY' LIMIT 1) AS bill_date, " .
-                "( SELECT SUM(b.fee) FROM billing AS b WHERE " .
-                "b.pid = f.pid AND b.encounter = f.encounter AND " .
-                "b.activity = 1 AND b.code_type != 'COPAY' ) AS charges, " .
-                "( SELECT SUM(b.fee) FROM billing AS b WHERE " .
-                "b.pid = f.pid AND b.encounter = f.encounter AND " .
-                "b.activity = 1 AND b.code_type = 'COPAY' ) AS copays, " .
-                "( SELECT SUM(s.fee) FROM drug_sales AS s WHERE " .
-                "s.pid = f.pid AND s.encounter = f.encounter ) AS sales, " .
-                "( SELECT SUM(a.pay_amount) FROM ar_activity AS a WHERE " .
-                "a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS payments, " .
-                "( SELECT SUM(a.adj_amount) FROM ar_activity AS a WHERE " .
-                "a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS adjustments, " .
-                "cpt.cpt_codes " .
-                "FROM form_encounter AS f " .
-                "JOIN patient_data AS p ON p.pid = f.pid " .
-                "/** haroon start **/ JOIN 	billing AS b ON f.pid=b.pid /** haroon end **/" .
-                "LEFT OUTER JOIN users AS u ON u.id = f.referring_provider_id " .
-                "LEFT OUTER JOIN users AS w ON w.id = f.provider_id " .
-                "LEFT JOIN (
+        "f.last_level_closed, f.last_stmt_date, f.stmt_count, f.invoice_refno, f.in_collection, " .
+        "p.fname, p.mname, p.lname, p.street, p.city, p.state, " .
+        "p.postal_code, p.phone_home, p.ss, p.billing_note, " .
+        "p.pubpid, p.DOB, CONCAT(u.lname, ', ', u.fname) AS referrer, " .
+        "( SELECT bill_date FROM billing AS b WHERE " .
+        "b.pid = f.pid AND b.encounter = f.encounter AND " .
+        "b.activity = 1 AND b.code_type != 'COPAY' LIMIT 1) AS bill_date, " .
+        "( SELECT SUM(b.fee) FROM billing AS b WHERE " .
+        "b.pid = f.pid AND b.encounter = f.encounter AND " .
+        "b.activity = 1 AND b.code_type != 'COPAY' ) AS charges, " .
+        "( SELECT SUM(b.fee) FROM billing AS b WHERE " .
+        "b.pid = f.pid AND b.encounter = f.encounter AND " .
+        "b.activity = 1 AND b.code_type = 'COPAY' ) AS copays, " .
+        "( SELECT SUM(s.fee) FROM drug_sales AS s WHERE " .
+        "s.pid = f.pid AND s.encounter = f.encounter ) AS sales, " .
+        "( SELECT SUM(a.pay_amount) FROM ar_activity AS a WHERE " .
+        "a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS payments, " .
+        "( SELECT SUM(a.adj_amount) FROM ar_activity AS a WHERE " .
+        "a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS adjustments, " .
+        "cpt.cpt_codes " .
+        "FROM form_encounter AS f " .
+        "JOIN patient_data AS p ON p.pid = f.pid " .
+        "/** haroon start **/ JOIN 	billing AS b ON f.pid=b.pid /** haroon end **/" .
+        "LEFT OUTER JOIN users AS u ON u.id = f.referring_provider_id " .
+        "LEFT OUTER JOIN users AS w ON w.id = f.provider_id " .
+        "LEFT JOIN (
             SELECT
                 pid,
                 encounter,
@@ -716,60 +862,55 @@ else if (!empty($_POST['download_csv'])) {
             WHERE code_type = 'CPT4' AND activity = 1
             GROUP BY pid, encounter
             ) cpt ON cpt.pid = f.pid AND cpt.encounter = f.encounter " .
-                "WHERE $where " .
-                "ORDER BY f.pid, f.encounter";
+        "WHERE $where " .
+        "ORDER BY f.pid, f.encounter";
 
     $eres = sqlStatement($query, $sqlArray);
 
-    $records_count_query = "select count(*) from (" . $query . ") as sub";
-    $countRow = sqlQuery($records_count_query, $sqlArray);
-    $records_count = array_values($countRow)[0];
 
-    if ($records_count > 100) {
-        $filename = "collections_export_{$timestamp}.csv";
-        chdir("../../sites/default/documents/temp/");
-        $filePath = getcwd() . "/" . $filename;
-        error_reporting(0);
 
-        while (ob_get_level()) {
-            ob_end_clean();
-        }
 
-        // Set headers FIRST
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        header('Cache-Control: private, no-transform, no-store, must-revalidate');
-        header('Expires: 0');
-        header('Pragma: no-cache');
+    $filename = "collections_export_{$timestamp}.csv";
+    chdir("../../sites/default/documents/temp/");
+    $filePath = getcwd() . "/" . $filename;
+    error_reporting(0);
 
-        $output = fopen('php://output', 'w');
-
-        fprintf($output, "\xEF\xBB\xBF");
-
-        $result = sqlStatement($query, $sqlArray);
-
-        $first = true;
-        while ($row = sqlFetchArray($result)) {
-            if ($first) {
-                // Output headers
-                fputcsv($output, array_keys($row));
-                $first = false;
-            }
-
-            $cleanRow = array_map(function ($value) {
-                if ($value === null) return '';
-                return str_replace(array("\r", "\n"), ' ', $value);
-            }, $row);
-
-            fputcsv($output, $cleanRow);
-        }
-
-        fclose($output);
-        exit;
-    } else {
-        echo "<script>alert('No records found to export.');</script>";
-        exit;
+    while (ob_get_level()) {
+        ob_end_clean();
     }
+
+    // Set headers FIRST
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: private, no-transform, no-store, must-revalidate');
+    header('Expires: 0');
+    header('Pragma: no-cache');
+
+    $output = fopen('php://output', 'w');
+
+    fprintf($output, "\xEF\xBB\xBF");
+
+    $result = sqlStatement($query, $sqlArray);
+
+    $first = true;
+    while ($row = sqlFetchArray($result)) {
+        if ($first) {
+            // Output headers
+            fputcsv($output, array_keys($row));
+            $first = false;
+        }
+
+        $cleanRow = array_map(function ($value) {
+            if ($value === null) return '';
+            return str_replace(array("\r", "\n"), ' ', $value);
+        }, $row);
+
+        fputcsv($output, $cleanRow);
+    }
+
+    fclose($output);
+    exit;
+
 
     // HAROON_CHANGE_REPORT_OPTIMIZATION_END_08312025
 
@@ -1264,28 +1405,6 @@ else if (!empty($_POST['download_csv'])) {
                 "ORDER BY f.pid, f.encounter";
 
             $eres = sqlStatement($query, $sqlArray);
-
-            $records_count_query = "select count(*) from (" . $query . ") as sub";
-            $countRow = sqlQuery($records_count_query, $sqlArray);
-            $records_count = array_values($countRow)[0];
-
-            if ($records_count > 1) {
-                // echo "<script> alert('Im inside');</script>";
-                // Generate unique filename with timestamp
-
-
-                // Download through browser
-                // debugDownloadIssue($query, $sqlArray, "test.csv");
-                // downloadQueryToCSV($query, $sqlArray, $filename);
-                //START
-
-                //END
-                exit;
-            } else {
-                echo "<script>alert('No records found to export.');</script>";
-                exit;
-            }
-
 
             while ($erow = sqlFetchArray($eres)) {
                 $patient_id = $erow['pid'];
