@@ -609,7 +609,6 @@ else if (!empty($_POST['download_csv'])) {
     if (! $where) {
         $where = "1 = 1";
     }
-
     $timestamp = date('Y-m-d_H-i-s');
     $sqlArray = array();
     $query = "SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed,IF(b.billed = 0, 'Unbilled', 'Billed') AS billing_status,  " .
