@@ -282,209 +282,6 @@ function endPatient($ptrow)
 }
 
 
-// if (isset($_POST['download']) && $_POST['download'] === 'csv') {
-
-//     // Include necessary files
-//     require_once 'your-db-config.php';
-
-//     // Disable all output
-//     error_reporting(0);
-//     while (ob_get_level()) {
-//         ob_end_clean();
-//     }
-
-//     // Set headers
-//     header('Content-Type: text/csv; charset=utf-8');
-//     header('Content-Disposition: attachment; filename="export_' . date('Y-m-d_H-i-s') . '.csv"');
-//     header('Cache-Control: private, no-transform, no-store, must-revalidate');
-
-//     // Output CSV
-//     $output = fopen('php://output', 'w');
-//     fprintf($output, "\xEF\xBB\xBF");
-
-//     $query = "YOUR SQL QUERY HERE";
-//     $result = sqlStatement($query);
-
-//     $first = true;
-//     while ($row = sqlFetchArray($result)) {
-//         if ($first) {
-//             fputcsv($output, array_keys($row));
-//             $first = false;
-//         }
-//         fputcsv($output, array_map(function ($v) {
-//             return $v === null ? '' : str_replace(["\r", "\n"], ' ', $v);
-//         }, $row));
-//     }
-
-//     fclose($output);
-//     exit(); // EXIT BEFORE ANY HTML IS OUTPUT
-// }
-
-
-// function downloadQueryToCSV($query, $sqlArray = [], $filename)
-// {   $result = sqlStatement($query, $sqlArray);
-//     if (ob_get_level()) {
-//         ob_end_clean();
-//     }
-//     $csvContent = '';
-//     $first = true;
-//     while ($row = sqlFetchArray($result)) {
-//         if ($first) {
-//             // Add headers (column names)
-//             $csvContent .= implode(',', array_map(function ($header) {
-//                 return '"' . str_replace('"', '""', $header) . '"';
-//             }, array_keys($row))) . "\n";
-//             $first = false;
-//         }
-
-//         // Add row data, replacing line breaks with spaces and escaping quotes
-//         $csvContent .= implode(',', array_map(function ($value) {
-//             $value = str_replace(array("\r", "\n"), ' ', $value);
-//             return '"' . str_replace('"', '""', $value) . '"';
-//         }, $row)) . "\n";
-//     }
-//     header('Content-Type: text/csv; charset=utf-8');
-//     header('Content-Disposition: attachment; filename="' . $filename . '"');
-//     header('Content-Length: ' . strlen($csvContent));
-//     header('Pragma: public');
-//     header('Expires: 0');
-//     header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-//     header('Content-Description: File Transfer');
-
-//     // Output the CSV content AFTER headers are set
-//     echo $csvContent;
-
-//     // Exit to prevent any additional output
-//     exit();
-// }
-
-function debugDownloadIssue($query, $sqlArray = [], $filename)
-{
-    // Check for any previous output
-    if (ob_get_level()) {
-        $existingOutput = ob_get_contents();
-        if (!empty($existingOutput)) {
-            die("Error: Output already sent before download: " . htmlspecialchars(substr($existingOutput, 0, 100)));
-        }
-    }
-
-    // Check if headers already sent
-    if (headers_sent($file, $line)) {
-        die("Error: Headers already sent in $file on line $line");
-    }
-
-    // Try the download
-    $timestamp = date('Y-m-d_H-i-s');
-    $sqlArray = array();
-    $query = "SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed, " .
-        "f.last_level_closed, f.last_stmt_date, f.stmt_count, f.invoice_refno, f.in_collection, " .
-        "p.fname, p.mname, p.lname, p.street, p.city, p.state, " .
-        "p.postal_code, p.phone_home, p.ss, p.billing_note, " .
-        "p.pubpid, p.DOB, CONCAT(u.lname, ', ', u.fname) AS referrer, " .
-        "( SELECT bill_date FROM billing AS b WHERE " .
-        "b.pid = f.pid AND b.encounter = f.encounter AND " .
-        "b.activity = 1 AND b.code_type != 'COPAY' LIMIT 1) AS bill_date, " .
-        "( SELECT SUM(b.fee) FROM billing AS b WHERE " .
-        "b.pid = f.pid AND b.encounter = f.encounter AND " .
-        "b.activity = 1 AND b.code_type != 'COPAY' ) AS charges, " .
-        "( SELECT SUM(b.fee) FROM billing AS b WHERE " .
-        "b.pid = f.pid AND b.encounter = f.encounter AND " .
-        "b.activity = 1 AND b.code_type = 'COPAY' ) AS copays, " .
-        "( SELECT SUM(s.fee) FROM drug_sales AS s WHERE " .
-        "s.pid = f.pid AND s.encounter = f.encounter ) AS sales, " .
-        "( SELECT SUM(a.pay_amount) FROM ar_activity AS a WHERE " .
-        "a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS payments, " .
-        "( SELECT SUM(a.adj_amount) FROM ar_activity AS a WHERE " .
-        "a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS adjustments, " .
-        "cpt.cpt_codes " .
-        "FROM form_encounter AS f " .
-        "JOIN patient_data AS p ON p.pid = f.pid " .
-        "/** haroon start **/ JOIN 	billing AS b ON f.pid=b.pid /** haroon end **/" .
-        "LEFT OUTER JOIN users AS u ON u.id = f.referring_provider_id " .
-        "LEFT OUTER JOIN users AS w ON w.id = f.provider_id " .
-        "LEFT JOIN (
-            SELECT
-                pid,
-                encounter,
-                GROUP_CONCAT(DISTINCT code ORDER BY code SEPARATOR ',') AS cpt_codes
-            FROM billing
-            WHERE code_type = 'CPT4' AND activity = 1
-            GROUP BY pid, encounter
-            ) cpt ON cpt.pid = f.pid AND cpt.encounter = f.encounter " .
-        "ORDER BY f.pid, f.encounter";
-
-    $eres = sqlStatement($query, $sqlArray);
-
-    $records_count_query = "select count(*) from (" . $query . ") as sub";
-    $countRow = sqlQuery($records_count_query, $sqlArray);
-    $records_count = array_values($countRow)[0];
-
-    if ($records_count > 1) {
-        // echo "<script> alert('Im inside');</script>";
-        // Generate unique filename with timestamp
-        $filename = "collections_export_{$timestamp}.csv";
-        // Path to save the CSV file on the server (use a secure path)
-        chdir("../../sites/default/documents/temp/");
-        $filePath = getcwd() . "/" . $filename;
-        // downloadQueryToCSV($query, $sqlArray, 'report.csv');
-        // Disable error reporting
-        error_reporting(0);
-
-        // Clear all output buffers
-        while (ob_get_level()) {
-            ob_end_clean();
-        }
-
-        // Set headers FIRST
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        header('Cache-Control: private, no-transform, no-store, must-revalidate');
-        header('Expires: 0');
-        header('Pragma: no-cache');
-
-        // Open output stream
-        $output = fopen('php://output', 'w');
-
-        // Add BOM for UTF-8 Excel compatibility
-        fprintf($output, "\xEF\xBB\xBF");
-
-        // Get results from database
-        $result = sqlStatement($query, $sqlArray);
-
-        $first = true;
-        while ($row = sqlFetchArray($result)) {
-            if ($first) {
-                // Output headers
-                fputcsv($output, array_keys($row));
-                $first = false;
-            }
-
-            // Clean row data
-            $cleanRow = array_map(function ($value) {
-                if ($value === null) return '';
-                return str_replace(array("\r", "\n"), ' ', $value);
-            }, $row);
-
-            // Output row
-            fputcsv($output, $cleanRow);
-        }
-
-        // Close output stream
-        fclose($output);
-        exit();
-
-        // Download through browser
-        // debugDownloadIssue($query, $sqlArray, "test.csv");
-        // downloadQueryToCSV($query, $sqlArray, $filename);
-        //START
-
-        //END
-        exit;
-    } else {
-        echo "<script>alert('No records found to export.');</script>";
-        exit;
-    }
-}
 
 
 function endInsurance($insrow)
@@ -657,7 +454,7 @@ if (!empty($_POST['form_refresh'])) {
         $where = "1 = 1";
     }
 
-    $query = "SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed, " .
+    $query = "SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed,IF(b.billed = 0, 'Unbilled', 'Billed') AS billing_status, " .
         "f.last_level_closed, f.last_stmt_date, f.stmt_count, f.invoice_refno, f.in_collection, " .
         "p.fname, p.mname, p.lname, p.street, p.city, p.state, " .
         "p.postal_code, p.phone_home, p.ss, p.billing_note, " .
@@ -701,7 +498,7 @@ if (!empty($_POST['form_refresh'])) {
     $countRow = sqlQuery($records_count_query, $sqlArray);
     $records_count = array_values($countRow)[0];
 
-    if ($records_count <= 500) {
+    if ($records_count <= 200) {
         $_POST['download_csv'] = '';
     } else if ($records_count == 0) {
         echo "<script>alert('No records found to export.');</script>";
@@ -813,21 +610,9 @@ else if (!empty($_POST['download_csv'])) {
         $where = "1 = 1";
     }
 
-
-    if (ob_get_level()) {
-        $existingOutput = ob_get_contents();
-        if (!empty($existingOutput)) {
-            die("Error: Output already sent before download: " . htmlspecialchars(substr($existingOutput, 0, 100)));
-        }
-    }
-
-    if (headers_sent($file, $line)) {
-        die("Error: Headers already sent in $file on line $line");
-    }
-
     $timestamp = date('Y-m-d_H-i-s');
     $sqlArray = array();
-    $query = "SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed, " .
+    $query = "SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed,IF(b.billed = 0, 'Unbilled', 'Billed') AS billing_status,  " .
         "f.last_level_closed, f.last_stmt_date, f.stmt_count, f.invoice_refno, f.in_collection, " .
         "p.fname, p.mname, p.lname, p.street, p.city, p.state, " .
         "p.postal_code, p.phone_home, p.ss, p.billing_note, " .
@@ -1366,7 +1151,7 @@ else if (!empty($_POST['download_csv'])) {
             }
 
             # added provider from encounter to the query (TLH)
-            $query = "SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed, " .
+            $query = "SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed,b.billed, " .
                 "f.last_level_closed, f.last_stmt_date, f.stmt_count, f.invoice_refno, f.in_collection, " .
                 "p.fname, p.mname, p.lname, p.street, p.city, p.state, " .
                 "p.postal_code, p.phone_home, p.ss, p.billing_note, " .
