@@ -77,7 +77,7 @@ function endDoctor(&$docrow)
     }
 
     echo " <tr class='report_totals'>\n";
-    echo "  <td colspan='5'>\n";
+    echo "  <td colspan='7'>\n";
     echo "   &nbsp;" . xlt('Totals for') . ' ' . text($docrow['docname']) . "\n";
     echo "  </td>\n";
     echo "  <td align='right'>\n";
@@ -120,14 +120,17 @@ if (!empty($_POST['form_refresh'])) {
     "fe.encounter, fe.date AS encdate, " .
     "f.authorized, " .
     "p.fname, p.lname, p.pid, p.pubpid, " .
-    "CONCAT( u.lname, ', ', u.fname ) AS docname " .
+    "CONCAT( u.lname, ', ', u.fname ) AS docname, " .
+    "CONCAT( u2.lname, ', ', u2.fname ) AS ref_provider " .
     "FROM openemr_postcalendar_events AS e " .
     "LEFT OUTER JOIN form_encounter AS fe " .
     "ON fe.date = e.pc_eventDate AND fe.pid = e.pc_pid " .
     "LEFT OUTER JOIN forms AS f ON f.pid = fe.pid AND f.encounter = fe.encounter AND f.formdir = 'newpatient' " .
     "LEFT OUTER JOIN patient_data AS p ON p.pid = e.pc_pid " .
     // "LEFT OUTER JOIN users AS u ON BINARY u.username = BINARY f.user WHERE ";
-    "LEFT OUTER JOIN users AS u ON u.id = fe.provider_id WHERE ";
+    "LEFT OUTER JOIN users AS u ON u.id = fe.provider_id " .
+    "LEFT OUTER JOIN users AS u2 ON u2.id = fe.referring_provider_id " .
+    "WHERE ";
     if ($form_to_date) {
         $query .= "e.pc_eventDate >= ? AND e.pc_eventDate <= ? ";
         array_push($sqlBindArray, $form_from_date, $form_to_date);
@@ -149,7 +152,8 @@ if (!empty($_POST['form_refresh'])) {
     "fe.encounter, fe.date AS encdate, " .
     "f.authorized, " .
     "p.fname, p.lname, p.pid, p.pubpid, " .
-    "CONCAT( u.lname, ', ', u.fname ) AS docname " .
+    "CONCAT( u.lname, ', ', u.fname ) AS docname, " .
+    "CONCAT( u2.lname, ', ', u2.fname ) AS ref_provider " .
     "FROM form_encounter AS fe " .
     "LEFT OUTER JOIN openemr_postcalendar_events AS e " .
     "ON fe.date = e.pc_eventDate AND fe.pid = e.pc_pid AND " .
@@ -158,7 +162,9 @@ if (!empty($_POST['form_refresh'])) {
     "LEFT OUTER JOIN forms AS f ON f.pid = fe.pid AND f.encounter = fe.encounter AND f.formdir = 'newpatient' " .
     "LEFT OUTER JOIN patient_data AS p ON p.pid = fe.pid " .
     // "LEFT OUTER JOIN users AS u ON BINARY u.username = BINARY f.user WHERE ";
-    "LEFT OUTER JOIN users AS u ON u.id = fe.provider_id WHERE ";
+    "LEFT OUTER JOIN users AS u ON u.id = fe.provider_id " .
+    "LEFT OUTER JOIN users AS u2 ON u2.id = fe.referring_provider_id " .
+    "WHERE ";
     array_push($sqlBindArray, '?', '?');
     if ($form_to_date) {
         // $query .= "LEFT(fe.date, 10) >= '$form_from_date' AND LEFT(fe.date, 10) <= '$form_to_date' ";
@@ -212,6 +218,50 @@ if (!empty($_POST['form_refresh'])) {
     </style>
 
     <script>
+    //HAROON CHG1 08292025 START
+        function downloadCSV() {
+    var table = document.getElementById('mymaintable');
+    if (!table) return;
+
+    var rows = Array.from(table.querySelectorAll('tr'));
+    var csv = rows.map(function(row) {
+        var cols = Array.from(row.querySelectorAll('th,td'));
+        return cols.map(function(col) {
+            // Remove links, buttons, and inputs for CSV export
+            var cell = col.cloneNode(true);
+            Array.from(cell.querySelectorAll('a,button,input')).forEach(el => el.remove());
+            // Escape double quotes
+            var text = col.innerText.replace(/"/g, '""');
+            // Wrap in quotes if contains comma or newline
+            if (text.search(/("|,|\n)/g) >= 0) {
+                text = '"' + text + '"';
+            }
+            return text;
+        }).join(',');
+    }).join('\n');
+
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var url = window.URL.createObjectURL(blob);
+
+    var a = document.createElement('a');
+    a.setAttribute('href', url);
+    a.setAttribute('download', 'receipts_report.csv');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    var btn = document.getElementById('downloadcsv');
+    if (btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            downloadCSV();
+        });
+    }
+});
+    // //HAROON CHG1 08292025 END
         $(function () {
             oeFixedHeaderSetup(document.getElementById('mymaintable'));
             var win = top.printLogSetup ? top : opener.top;
@@ -316,6 +366,11 @@ if (!empty($_POST['form_refresh'])) {
                       <a href='#' class='btn btn-secondary btn-print' id='printbutton'>
                             <?php echo xlt('Print'); ?>
                       </a>
+                      <!-- //HAROON CHG1 08292025 START -->
+                      <a href='#' class='btn btn-secondary btn-download' id='downloadcsv'>
+                    <?php echo xlt('Export to CSV'); ?>
+            		</a>
+            <!-- //HAROON CHG1 08292025 END -->
                     <?php } ?>
           </div>
                 </div>
@@ -339,6 +394,8 @@ if (!empty($_POST['form_refresh'])) {
 <th> &nbsp;<?php echo xlt('Date/Appt'); ?> </th>
 <th> &nbsp;<?php echo xlt('Patient'); ?> </th>
 <th> &nbsp;<?php echo xlt('ID'); ?> </th>
+<th> &nbsp;<?php echo xlt('Ref Provider'); ?> </th>
+<th> &nbsp;<?php echo xlt('CPT'); ?> </th>
 <th align='right'> <?php echo xlt('Chart'); ?>&nbsp; </th>
 <th align='right'> <?php echo xlt('Encounter'); ?>&nbsp; </th>
 <th align='right'> <?php echo xlt('Charges'); ?>&nbsp; </th>
@@ -373,10 +430,14 @@ if (!empty($_POST['form_refresh'])) {
             "pid = ? AND encounter = ? AND activity = 1";
             $bres = sqlStatement($query, array($patient_id, $encounter));
             //
+            $codes = array();
             while ($brow = sqlFetchArray($bres)) {
                 $code_type = $brow['code_type'];
                 if ($code_types[$code_type]['fee'] && !$brow['billed']) {
                     $billed = "";
+                }
+                if($code_type == 'CPT4') {
+                    $codes[] = $brow['code'];
                 }
 
                 if (!$GLOBALS['simplified_demographics'] && !$brow['authorized']) {
@@ -517,6 +578,10 @@ if (!empty($_POST['form_refresh'])) {
          <td>
           &nbsp;<?php echo text($row['pubpid']); ?>
          </td>
+         <td ><?php echo $row['ref_provider']; ?></td>
+         <td align='right'>
+            <?php echo implode('<br>', $codes); ?>
+         </td>
          <td align='right'>
                 <?php echo text($row['pid']); ?>&nbsp;
          </td>
@@ -545,7 +610,7 @@ if (!empty($_POST['form_refresh'])) {
         endDoctor($docrow);
 
         echo " <tr class='report_totals'>\n";
-        echo "  <td colspan='5'>\n";
+        echo "  <td colspan='7'>\n";
         echo "   &nbsp;" . xlt('Grand Totals') . "\n";
         echo "  </td>\n";
         echo "  <td align='right'>\n";
