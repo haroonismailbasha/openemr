@@ -131,7 +131,7 @@ function showLineItem(
             ?>
 
             <tr class="table-secondary">
-                <td colspan="<?php echo $showing_ppd ? 8 : 4; ?>">
+                <td colspan="<?php echo $showing_ppd ? 10 : 6; ?>">
                     <?php echo xlt('Total for ') . text($paymethod); ?>
                 </td>
                 <td class="text-right">
@@ -165,16 +165,26 @@ function showLineItem(
         </td>
         <td>
             <?php
-                $pferow = sqlQuery("SELECT p.fname, p.mname, p.lname, fe.date, fe.id " .
-                "FROM patient_data AS p, form_encounter AS fe WHERE " .
+                $pferow = sqlQuery("SELECT p.fname, p.mname, p.lname, fe.date, fe.id, CONCAT(u.lname, ', ', u.fname) AS referrer, cpt.cpt_codes " .
+                "FROM patient_data AS p, form_encounter AS fe LEFT OUTER JOIN users AS u ON u.id = fe.referring_provider_id ".
+                "LEFT JOIN (
+                    SELECT
+                        pid,
+                        encounter,
+                        GROUP_CONCAT(DISTINCT code ORDER BY code SEPARATOR ',') AS cpt_codes
+                    FROM billing
+                    WHERE code_type = 'CPT4' AND activity = 1
+                    GROUP BY pid, encounter
+                ) cpt ON cpt.pid = fe.pid AND cpt.encounter = fe.encounter ".
+                " WHERE " .
                 "p.pid = ? AND fe.pid = p.pid AND " .
                 "fe.encounter = ? LIMIT 1", array($patient_id, $encounter_id));
             if (!empty($irnumber)) {
                 echo text($invnumber);
             } else {
-                echo "<input type='button' class='btn btn-sm btn-secondary' value='" .
-                      attr($patient_id) . "-" . attr($encounter_id) .
-                      "' onclick='editInvoice(event, " . attr_js($pferow['id']) . ")' />";
+                echo "<a href='javascript:void(0)' 
+                onClick='editInvoice(event, " . attr_js($pferow['id']) . ")' >" .
+                      attr($patient_id) . "-" . attr($encounter_id) . "</a>";
             }
             ?>
         </td>
@@ -184,6 +194,14 @@ function showLineItem(
 
             echo "  <td class='font-weight-bold'>\n";
             echo "   " . text($pferow['lname']) . ", " . text($pferow['fname']) . " " . text($pferow['mname']);
+            echo "  </td>\n";
+
+            echo "  <td class='font-weight-bold'>\n";
+            echo "   " . text($pferow['referrer']);
+            echo "  </td>\n";
+
+            echo "  <td class='font-weight-bold'>\n";
+            echo "   " . implode('<br>',explode(',', $pferow['cpt_codes']));
             echo "  </td>\n";
 
             echo "  <td class='font-weight-bold'>\n";
@@ -382,6 +400,53 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <body class="body_top">
 
+    <!-- HAROON CHG2 08292025 START-->
+   <!-- Status Label for Report Loading -->
+<div id="report-status-label" style="position:fixed;top:30px;left:50%;transform:translateX(-50%);z-index:9999;text-align:center;">
+    <span id="status-dot-label" style="display:inline-block;width:18px;height:18px;border-radius:50%;background:#e74c3c;vertical-align:middle;margin-right:8px;"></span>
+    <span id="status-text-label" style="font-weight:bold;color:#e74c3c;">In Progress</span>
+</div>
+<script>
+    // Show red (in progress) on submit, green (completed) when loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        var form = document.getElementById('theform');
+        var dot = document.getElementById('status-dot-label');
+        var text = document.getElementById('status-text-label');
+        if (form) {
+            // Set status to In Progress as soon as the submit button is clicked
+            var submitBtn = document.querySelector('.btn-save');
+            if (submitBtn) {
+                submitBtn.addEventListener('click', function() {
+                    if (dot) dot.style.background = '#e74c3c';
+                    if (text) {
+                        text.textContent = 'In Progress';
+                        text.style.color = '#e74c3c';
+                    }
+                });
+            }
+            // Also set on form submit as fallback
+            form.addEventListener('submit', function() {
+                if (dot) dot.style.background = '#e74c3c';
+                if (text) {
+                    text.textContent = 'In Progress';
+                    text.style.color = '#e74c3c';
+                }
+            });
+        }
+        // When page is loaded, show green (completed)
+        setTimeout(function() {
+            if (dot) dot.style.background = '#27ae60';
+            if (text) {
+                text.textContent = 'Completed';
+                text.style.color = '#27ae60';
+            }
+        }, 300); // slight delay to ensure DOM is ready
+    });
+</script>
+
+    <!-- HAROON CHG2 08292025 END-->
+
+
 <span class='title'><?php echo xlt('Report'); ?> - <?php echo xlt('Receipts Summary'); ?></span>
 
 <form method='post' action='receipts_by_method_report.php' id='theform' onsubmit='return top.restoreSession()'>
@@ -532,6 +597,12 @@ if (!empty($_POST['form_refresh'])) {
             <?php if ($showing_ppd) { ?>
         <th scope="col">
                 <?php echo xlt('Patient')?>
+        </th>
+        <th scope="col">
+                <?php echo xlt('Referrer')?>
+        </th>
+        <th scope="col">
+                <?php echo xlt('CPT')?>
         </th>
         <th scope="col">
                 <?php echo xlt('Policy')?>
@@ -768,7 +839,7 @@ if (!empty($_POST['form_refresh'])) {
             // Print last method total.
             ?>
             <tr class="table-secondary" scope="row">
-                <td colspan="<?php echo $showing_ppd ? 8 : 4; ?>">
+                <td colspan="<?php echo $showing_ppd ? 10 : 6; ?>">
                     <?php echo xlt('Total for ') . text($paymethod); ?>
                 </td>
                 <td class="text-right">
@@ -787,7 +858,7 @@ if (!empty($_POST['form_refresh'])) {
                 }
                 ?>
                 <tr>
-                    <td colspan="<?php echo $showing_ppd ? 8 : 4; ?>">
+                    <td colspan="<?php echo $showing_ppd ? 10 : 6; ?>">
                         <?php echo text($key); ?>
                     </td>
                     <td class="text-right">
@@ -802,7 +873,7 @@ if (!empty($_POST['form_refresh'])) {
         } // end payer summary
         ?>
         <tr class="table-info">
-            <td colspan="<?php echo $showing_ppd ? 8 : 4; ?>">
+            <td colspan="<?php echo $showing_ppd ? 10 : 6; ?>">
                 <?php echo xlt('Grand Total') ?>
             </td>
             <td class="text-right">
