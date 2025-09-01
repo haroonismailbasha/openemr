@@ -151,6 +151,9 @@ class HhMainMenuLinksTest extends PantherTestCase
             'Reports -> Financial -> Front Rec menu link' => ['Reports||Financial||Front Rec', 'Front Office Receipts'],
             'Reports -> Financial -> Pmt Method menu link' => ['Reports||Financial||Pmt Method', 'Receipts Summary'],
             'Reports -> Financial -> Collections and Aging menu link' => ['Reports||Financial||Collections and Aging', 'Collections Report'],
+            // HAROON CHANGE AR-REPORT ADDITION 09012025 START
+            'Reports -> Financial -> Alab AR Report menu link' => ['Reports||Financial||Alab AR Report', 'Collections Report'],
+            // HAROON CHANGE AR-REPORT ADDITION 09012025 END
             'Reports -> Financial -> Pat Ledger' => ['Reports||Financial||Pat Ledger', 'Patient Ledger by Date'],
             'Reports -> Financial -> Financial Summary by Service Code menu link' => ['Reports||Financial||Financial Summary by Service Code', 'Financial Summary by Service Code'],
             'Reports -> Financial -> Payment Processing menu link' => ['Reports||Financial||Payment Processing', 'Payment Processing'],

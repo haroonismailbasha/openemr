@@ -1675,6 +1675,18 @@
             ]
           },
           {
+            "label": "Alab AR Report",
+            "menu_id": "rep0",
+            "target": "rep",
+            "url": "/interface/reports/alab_ar_report.php",
+            "children": [],
+            "requirement": 0,
+            "acl_req": [
+              "acct",
+              "rep_a"
+            ]
+          },
+          {
             "label": "Pat Ledger",
             "menu_id": "rep0",
             "target": "rep",
