@@ -126,7 +126,7 @@ ORDER BY
 	
 select bg.pid,bg.encounter as billing_eid ,aa.encounter as ar_activity_eid, bg.billed ,bg.code , bg.code_text ,bg.fee ,bg.units, aa.pay_amount , aa.adj_amount  from billing bg 
 inner join ar_activity aa on aa.code =bg.code 
-where aa.encounter=bg.encounter and ;
+where aa.encounter=bg.encounter;
 
 
 
@@ -495,3 +495,10 @@ WHERE
 ORDER BY
 	f.pid,
 	f.encounter;
+
+
+-- TEST START REMOVE 	SUM(a.pay_amount) FROM ar_activity
+
+SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed, f.last_level_closed, f.last_stmt_date, f.stmt_count, f.invoice_refno, f.in_collection, p.fname, p.mname, p.lname, p.street, p.city, p.state, p.postal_code, p.phone_home, p.ss, p.billing_note, p.pubpid, p.DOB, CONCAT(u.lname, ', ', u.fname) AS referrer, (SELECT bill_date FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type != 'COPAY' LIMIT 1) AS bill_date, (SELECT SUM(b.fee) FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type != 'COPAY') AS charges, (SELECT SUM(b.fee) FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type = 'COPAY') AS copays, (SELECT SUM(s.fee) FROM drug_sales AS s WHERE s.pid = f.pid AND s.encounter = f.encounter) AS sales, a.pay_amount AS payments, a.adj_amount AS adjustments, cpt.code AS cpt_codes FROM form_encounter AS f JOIN patient_data AS p ON p.pid = f.pid JOIN billing AS b ON f.pid = b.pid LEFT OUTER JOIN users AS u ON u.id = f.referring_provider_id LEFT OUTER JOIN users AS w ON w.id = f.provider_id LEFT JOIN (SELECT pid, encounter, code FROM billing WHERE code_type = 'CPT4' AND activity = 1) cpt ON cpt.pid = f.pid AND cpt.encounter = f.encounter LEFT JOIN ar_activity AS a ON a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL WHERE b.code_type like '%' AND cpt.code is not null ORDER BY f.pid, f.encounter, cpt.code;
+
+-- TEST END REMOVE 	SUM(a.pay_amount) FROM ar_activity
