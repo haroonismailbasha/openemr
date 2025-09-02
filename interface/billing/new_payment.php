@@ -34,6 +34,8 @@ if (!AclMain::aclCheckCore('acct', 'bill', '', 'write') && !AclMain::aclCheckCor
     exit;
 }
 
+
+
 //===============================================================================
     $screen = 'new_payment';
 //===============================================================================
@@ -48,7 +50,46 @@ $hidden_type_code        = isset($_REQUEST['hidden_type_code']) ? $_REQUEST['hid
 //ar_session addition code
 //===============================================================================
 
+$pid = $hidden_patient_code;
+if(!$pid==""){
+ $noInsurance = false;
+    $primaryInsurance = false;
+    $secondaryInsurance = false;
+    $tertiaryInsurance = false;
+    $insuranceCheckerQuery = "select id.type from patient_data pd 
+                              inner JOIN insurance_data id on pd.pid=id.pid
+                              inner join insurance_companies ic on id.provider =ic.id 
+                              where pd.pid=" .
+        $pid;
+    $resultSet = sqlStatement($insuranceCheckerQuery);
+    if ($resultSet==null) {
+        $noInsurance = true;
+    } 
+    // else if($resultSet->numRows==0) {
+    //     $noInsurance = true;
+    // }
+     else{
+        while ($row = sqlFetchArray($resultSet)) {
+            // echo "Complete row data:<br>";
+            // print_r($row)['type']; // See all columns
+            // echo "<hr>";
+            if ($row['type']  == "primary") {
+                $primaryInsurance = true;
+            } else if ($row['type'] == "secondary") {
+                $secondaryInsurance = true;
+            } else if ($row['type'] == "tertiary") {
+                $tertiaryInsurance = true;
+            } else {
+                $noInsurance = true;
+            }
+        }
+    }
+}
+   
+
 if ($mode == "new_payment" || $mode == "distribute") {
+    
+
     if (trim($_POST['type_name']) == 'insurance') {
         $QueryPart = "payer_id = '" . add_escape_custom($hidden_type_code) . "', patient_id = '0" ;
     } elseif (trim($_POST['type_name']) == 'patient') {
@@ -345,6 +386,27 @@ $payment_id = $payment_id * 1 > 0 ? $payment_id + 0 : $request_payment_id + 0;
                         ?>
                         </div>
                         <br />
+<input type="checkbox" name="no insurance" value="1"
+                                                <?php echo $noInsurance ? 'checked' : ''; ?>>
+                                            Has No Insurance
+                                            </label><br>
+                                            <label>
+                                                <input type="checkbox" name="primary_insurance" value="1"
+                                                    <?php echo $primaryInsurance ? 'checked' : ''; ?>>
+                                                Has Primary Insurance
+                                            </label><br>
+                                            <label>
+                                                <input type="checkbox" name="secondary_insurance" value="1"
+                                                    <?php echo $secondaryInsurance ? 'checked' : ''; ?>>
+                                                Has Secondary Insurance
+                                            </label><br>
+                                            <label>
+                                                <input type="checkbox" name="tertiary_insurance" value="1"
+                                                    <?php echo $tertiaryInsurance ? 'checked' : ''; ?>>
+                                                Has Tertiary Insurance
+                                            </label><br>
+
+
                         <?php
                         if ($payment_id * 1 > 0) {
                             ?>

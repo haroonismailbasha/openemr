@@ -40,6 +40,45 @@ $screen = 'edit_payment';
 // Deletion of payment distribution code
 
 if (isset($_POST["mode"])) {
+    $pid = $_POST['hidden_patient_code'];
+    $noInsurance = false;
+    $primaryInsurance = false;
+    $secondaryInsurance = false;
+    $tertiaryInsurance = false;
+    $insuranceCheckerQuery = "select id.type from patient_data pd 
+                              inner JOIN insurance_data id on pd.pid=id.pid
+                              inner join insurance_companies ic on id.provider =ic.id 
+                              where pd.pid=" .
+        $pid;
+    $resultSet = sqlStatement($insuranceCheckerQuery);
+    if ($resultSet==null) {
+        $noInsurance = true;
+    } 
+    // else if($resultSet->numRows==0) {
+    //     $noInsurance = true;
+    // }
+     else{
+        while ($row = sqlFetchArray($resultSet)) {
+            // echo "Complete row data:<br>";
+            // print_r($row)['type']; // See all columns
+            // echo "<hr>";
+            if ($row['type']  == "primary") {
+                $primaryInsurance = true;
+            } else if ($row['type'] == "secondary") {
+                $secondaryInsurance = true;
+            } else if ($row['type'] == "tertiary") {
+                $tertiaryInsurance = true;
+            } else {
+                $noInsurance = true;
+            }
+        }
+    }
+
+
+    // $hasSecondaryInsurance = array_values($resultSet)[0];
+    // if (1 == 1) {
+    // }
+
     if ($_POST["mode"] == "DeletePaymentDistribution") {
         $DeletePaymentDistributionId = (isset($_POST['DeletePaymentDistributionId']) ? trim($_POST['DeletePaymentDistributionId']) : '');
         $DeletePaymentDistributionIdArray = explode('_', $DeletePaymentDistributionId);
@@ -54,12 +93,12 @@ if (isset($_POST["mode"])) {
             "ar_activity",
             "deleted = NOW()",
             "session_id = '" . add_escape_custom($payment_id) . "' AND " .
-            "pid = '" . add_escape_custom($PId) . "' AND " .
-            "deleted IS NULL AND " .
-            "encounter = '" . add_escape_custom($Encounter) . "' AND " .
-            "code_type = '" . add_escape_custom($Codetype) . "' AND " .
-            "code = '" . add_escape_custom($Code) . "' AND " .
-            "modifier='" . add_escape_custom($Modifier) . "'"
+                "pid = '" . add_escape_custom($PId) . "' AND " .
+                "deleted IS NULL AND " .
+                "encounter = '" . add_escape_custom($Encounter) . "' AND " .
+                "code_type = '" . add_escape_custom($Codetype) . "' AND " .
+                "code = '" . add_escape_custom($Code) . "' AND " .
+                "modifier='" . add_escape_custom($Modifier) . "'"
         );
         $Message = 'Delete';
         //------------------
@@ -359,8 +398,8 @@ if (isset($_POST["mode"])) {
 $payment_id = !empty($payment_id) ? (int) $payment_id : (int) $_REQUEST['payment_id'];
 $ResultSearchSub = sqlStatement(
     "SELECT DISTINCT encounter, code_type, code, modifier, pid " .
-    "FROM ar_activity WHERE deleted IS NULL AND session_id = ? " .
-    "ORDER BY pid, encounter, code, modifier",
+        "FROM ar_activity WHERE deleted IS NULL AND session_id = ? " .
+        "ORDER BY pid, encounter, code, modifier",
     [$payment_id]
 );
 
@@ -371,36 +410,37 @@ $ResultSearchSub = sqlStatement(
 ?>
 <!DOCTYPE html>
 <html>
+
 <head>
     <title><?php echo xlt('Confirm Payment'); ?></title>
     <?php Header::setupHeader(['datetime-picker', 'common']); ?>
 
     <script>
-    const mypcc = '1';
+        const mypcc = '1';
     </script>
     <?php include_once("{$GLOBALS['srcdir']}/payment_jav.inc.php"); ?>
     <?php include_once("{$GLOBALS['srcdir']}/ajax/payment_ajax_jav.inc.php"); ?>
     <script>
-        function ModifyPayments() {//Used while modifying the allocation
-            if (!FormValidations())//FormValidations contains the form checks
+        function ModifyPayments() { //Used while modifying the allocation
+            if (!FormValidations()) //FormValidations contains the form checks
             {
                 return false;
             }
-            if (CompletlyBlankAbove())//The distribution rows already in the database are checked.
+            if (CompletlyBlankAbove()) //The distribution rows already in the database are checked.
             {
-                alert(<?php echo xlj('None of the Top Distribution Row Can be Completly Blank.'); ?> +"\n" + <?php echo xlj('Use Delete Option to Remove.'); ?>);
+                alert(<?php echo xlj('None of the Top Distribution Row Can be Completly Blank.'); ?> + "\n" + <?php echo xlj('Use Delete Option to Remove.'); ?>);
                 return false;
             }
-    if (!CheckPayingEntityAndDistributionPostFor()) {
-        //Ensures that Insurance payment is distributed under Ins1,Ins2,Ins3 and Patient paymentat under Pat.
+            if (!CheckPayingEntityAndDistributionPostFor()) {
+                //Ensures that Insurance payment is distributed under Ins1,Ins2,Ins3 and Patient paymentat under Pat.
                 return false;
             }
-    if (CompletlyBlankBelow()) {
-        //The newly added distribution rows are checked.
+            if (CompletlyBlankBelow()) {
+                //The newly added distribution rows are checked.
                 alert(<?php echo xlj('Fill any of the Below Row.'); ?>);
                 return false;
             }
-    let PostValue = CheckUnappliedAmount();//Decides TdUnappliedAmount >0, or <0 or =0
+            let PostValue = CheckUnappliedAmount(); //Decides TdUnappliedAmount >0, or <0 or =0
             if (PostValue == 1) {
                 alert(<?php echo xlj('Cannot Modify Payments.Undistributed is Negative.'); ?>);
                 return false;
@@ -418,25 +458,25 @@ $ResultSearchSub = sqlStatement(
         }
 
         function FinishPayments() {
-            if (!FormValidations())//FormValidations contains the form checks
+            if (!FormValidations()) //FormValidations contains the form checks
             {
                 return false;
             }
-            if (CompletlyBlankAbove())//The distribution rows already in the database are checked.
+            if (CompletlyBlankAbove()) //The distribution rows already in the database are checked.
             {
-                alert(<?php echo xlj('None of the Top Distribution Row Can be Completly Blank.'); ?> +"\n" + <?php echo xlj('Use Delete Option to Remove.'); ?>);
+                alert(<?php echo xlj('None of the Top Distribution Row Can be Completly Blank.'); ?> + "\n" + <?php echo xlj('Use Delete Option to Remove.'); ?>);
                 return false;
             }
-            if (!CheckPayingEntityAndDistributionPostFor())//Ensures that Insurance payment is distributed under Ins1,Ins2,Ins3 and Patient paymentat under Pat.
+            if (!CheckPayingEntityAndDistributionPostFor()) //Ensures that Insurance payment is distributed under Ins1,Ins2,Ins3 and Patient paymentat under Pat.
             {
                 return false;
             }
-            if (CompletlyBlankBelow())//The newly added distribution rows are checked.
+            if (CompletlyBlankBelow()) //The newly added distribution rows are checked.
             {
                 alert(<?php echo xlj('Fill any of the Below Row.'); ?>);
                 return false;
             }
-    let PostValue = CheckUnappliedAmount();//Decides TdUnappliedAmount >0, or <0 or =0
+            let PostValue = CheckUnappliedAmount(); //Decides TdUnappliedAmount >0, or <0 or =0
             if (PostValue == 1) {
                 alert(<?php echo xlj('Cannot Modify Payments.Undistributed is Negative.'); ?>);
                 return false;
@@ -444,7 +484,7 @@ $ResultSearchSub = sqlStatement(
             if (PostValue == 2) {
                 if (confirm(<?php echo xlj('Would you like to Modify and Finish Payments?'); ?>)) {
                     UnappliedAmount = document.getElementById('TdUnappliedAmount').innerHTML * 1;
-                    if (confirm(<?php echo xlj('Undistributed is'); ?> +' ' + UnappliedAmount + '.' + '\n' + <?php echo xlj('Would you like the balance amount to apply to Global Account?'); ?>)) {
+                    if (confirm(<?php echo xlj('Undistributed is'); ?> + ' ' + UnappliedAmount + '.' + '\n' + <?php echo xlj('Would you like the balance amount to apply to Global Account?'); ?>)) {
                         document.getElementById('mode').value = 'FinishPayments';
                         document.getElementById('global_amount').value = 'yes';
                         top.restoreSession();
@@ -467,9 +507,9 @@ $ResultSearchSub = sqlStatement(
 
         }
 
-        function CompletlyBlankAbove() {//The distribution rows already in the database are checked.
+        function CompletlyBlankAbove() { //The distribution rows already in the database are checked.
             //It is not allowed to be made completly empty.If needed delete option need to be used.
-    let CountIndexAbove = document.getElementById('CountIndexAbove').value * 1;
+            let CountIndexAbove = document.getElementById('CountIndexAbove').value * 1;
             for (RowCount = 1; RowCount <= CountIndexAbove; RowCount++) {
                 if (document.getElementById('Allowed' + RowCount).value == '' && document.getElementById('Payment' + RowCount).value == '' && document.getElementById('AdjAmount' + RowCount).value == '' && document.getElementById('Deductible' + RowCount).value == '' && document.getElementById('Takeback' + RowCount).value == '' && document.getElementById('FollowUp' + RowCount).checked == false) {
                     return true;
@@ -478,10 +518,10 @@ $ResultSearchSub = sqlStatement(
             return false;
         }
 
-        function CompletlyBlankBelow() {//The newly added distribution rows are checked.
+        function CompletlyBlankBelow() { //The newly added distribution rows are checked.
             //It is not allowed to be made completly empty.
-    let CountIndexAbove = document.getElementById('CountIndexAbove').value * 1;
-    let CountIndexBelow = document.getElementById('CountIndexBelow').value * 1;
+            let CountIndexAbove = document.getElementById('CountIndexAbove').value * 1;
+            let CountIndexBelow = document.getElementById('CountIndexBelow').value * 1;
             if (CountIndexBelow == 0)
                 return false;
             for (RowCount = CountIndexAbove + 1; RowCount <= CountIndexAbove + CountIndexBelow; RowCount++) {
@@ -493,8 +533,8 @@ $ResultSearchSub = sqlStatement(
             return true;
         }
 
-        function OnloadAction() {//Displays message while loading after some action.
-    let after_value = document.getElementById('ActionStatus').value;
+        function OnloadAction() { //Displays message while loading after some action.
+            let after_value = document.getElementById('ActionStatus').value;
             if (after_value == 'Delete') {
                 alert(<?php echo xlj('Successfully Deleted'); ?>);
                 return true;
@@ -504,9 +544,9 @@ $ResultSearchSub = sqlStatement(
                 return true;
             }
             after_value = document.getElementById('after_value').value;
-    let payment_id = document.getElementById('payment_id').value;
-            if (after_value == 'distribute') {
-            } else if (after_value == 'new_payment') {
+            let payment_id = document.getElementById('payment_id').value;
+            if (after_value == 'distribute') {} else if (after_value == 'new_payment') {
+
                 if (document.getElementById('TablePatientPortion')) {
                     document.getElementById('TablePatientPortion').style.display = 'none';
                 }
@@ -519,7 +559,7 @@ $ResultSearchSub = sqlStatement(
 
         }
 
-        function DeletePaymentDistribution(DeleteId) {//Confirms deletion of payment distribution.
+        function DeletePaymentDistribution(DeleteId) { //Confirms deletion of payment distribution.
             if (confirm(<?php echo xlj('Would you like to Delete Payment Distribution?'); ?>)) {
                 document.getElementById('mode').value = 'DeletePaymentDistribution';
                 document.getElementById('DeletePaymentDistributionId').value = DeleteId;
@@ -531,13 +571,14 @@ $ResultSearchSub = sqlStatement(
 
         //========================================================================================
 
-        $(function () {
+        $(function() {
             $('.datepicker').datetimepicker({
                 <?php $datetimepicker_timepicker = false; ?>
                 <?php $datetimepicker_showseconds = false; ?>
                 <?php $datetimepicker_formatInput = true; ?>
                 <?php require($GLOBALS['srcdir'] . '/js/xl/jquery-datetimepicker-2-5-4.js.php'); ?>
-                <?php // can add any additional javascript settings to datetimepicker here; need to prepend first setting with a comma ?>
+                <?php // can add any additional javascript settings to datetimepicker here; need to prepend first setting with a comma 
+                ?>
             });
         });
 
@@ -547,6 +588,7 @@ $ResultSearchSub = sqlStatement(
         .amt_input {
             max-width: 75px;
         }
+
         .bottom {
             border-bottom: 1px solid var(--black);
         }
@@ -593,11 +635,12 @@ $ResultSearchSub = sqlStatement(
     </style>
     <?php Header::setupHeader(['datetime-picker', 'common']); ?>
 </head>
+
 <body class="body_top" onload="OnloadAction()">
     <div class="container-fluid">
         <?php
         if ($_REQUEST['ParentPage'] ?? '' == 'new_payment') {
-            ?>
+        ?>
             <div class="row">
                 <div class="col-12">
                     <h2><?php echo xlt('Payments'); ?></h2>
@@ -623,7 +666,7 @@ $ResultSearchSub = sqlStatement(
                     </nav>
                 </div>
             </div>
-            <?php
+        <?php
         }
         ?>
         <?php
@@ -634,20 +677,23 @@ $ResultSearchSub = sqlStatement(
         }
         ?>
         <form class="form" name='new_payment' method='post' action="edit_payment.php" onsubmit='<?php echo $onclick; ?>'>
+
             <?php
             if (!empty($payment_id)) { ?>
-            <fieldset>
-                <?php
-                require_once("payment_master.inc.php");  //Check/cash details are entered here.
-                ?>
-                <?php }//End of if($payment_id*1>0) ?>
-                <?php
-                if (!empty($payment_id)) {//Distribution rows already in the database are displayed.
+
+                <fieldset>
+                    <?php
+                    require_once("payment_master.inc.php");  //Check/cash details are entered here.
                     ?>
+                <?php } //End of if($payment_id*1>0) 
+                ?>
+                <?php
+                if (!empty($payment_id)) { //Distribution rows already in the database are displayed.
+                ?>
                     <?php //
                     $resCount = sqlStatement(
                         "SELECT DISTINCT encounter, code_type, code, modifier FROM ar_activity " .
-                        "WHERE deleted IS NULL AND session_id = ?",
+                            "WHERE deleted IS NULL AND session_id = ?",
                         [$payment_id]
                     );
                     $TotalRows = sqlNumRows($resCount);
@@ -694,404 +740,433 @@ $ResultSearchSub = sqlStatement(
                             if (sqlNumRows($ResultSearch) > 0) {
                                 if ($CountPatient === 1) {
                                     $Table = 'yes';
-                                    ?>
+                    ?>
                                     <br /><br />
                                     <div class="row" id="tableRow">
-                                    <legend><?php echo xlt("Distributed Edits") ?></legend>
-                                    <div class="table-responsive-lg">
-                                    <table class="table table-sm table-bordered table-light" id="TableDistributedEdit" >
-                                    <thead class="bg-dark text-light">
-                                    <tr>
-                                        <th>&nbsp;</th>
-                                        <th><?php echo xlt('Patient Name'); ?></th>
-                                        <th><?php echo xlt('Post For'); ?></th>
-                                        <th><?php echo xlt('Service Date'); ?></th>
-                                        <th><?php echo xlt('Enc#'); ?></th>
-                                        <th><?php echo xlt('Code'); ?></th>
-                                        <th><?php echo xlt('Charge'); ?></th>
-                                        <th><?php echo xlt('Copay'); ?></th>
-                                        <th><?php echo xlt('Bal-Due'); ?></th>
-                                        <th><?php echo xlt('Allowed(c)'); ?></th><!-- (c) means it is calculated.Not stored one. -->
-                                        <th><?php echo xlt('Payment'); ?></th>
-                                        <th><?php echo xlt('Adj Amount'); ?></th>
-                                        <th><?php echo xlt('Deductible'); ?></th>
-                                        <th><?php echo xlt('Takeback'); ?></th>
-                                        <th><?php echo xlt('MSP'); ?></th>
-                                        <th><?php echo xlt('Resn'); ?></th>
-                                        <th><?php echo xlt('Follow Up Reason'); ?></th>
-                                    </tr>
-                                    </thead>
-                                <?php }
-                                while ($RowSearch = sqlFetchArray($ResultSearch)) {
-                                    $CountIndex++;
-                                    $CountIndexAbove++;
-                                    $ServiceDateArray = explode(' ', $RowSearch['date']);
-                                    $ServiceDate = oeFormatShortDate($ServiceDateArray[0]);
-                                    $Codetype = $RowSearch['code_type'];
-                                    $Code = $RowSearch['code'];
-                                    $Modifier = $RowSearch['modifier'];
-                                    if ($Modifier != '') {
-                                        $ModifierString = ", $Modifier";
-                                    } else {
-                                        $ModifierString = "";
-                                    }
-                                    $Fee = $RowSearch['fee'];
-                                    $Encounter = $RowSearch['encounter'];
+                                        <legend><?php echo xlt("Distributed Edits") ?></legend>
 
-                                    $resPayer = sqlStatement(
-                                        "SELECT payer_type FROM ar_activity WHERE " .
-                                        "deleted IS NULL AND session_id = ? AND pid = ? AND encounter = ? " .
-                                        "AND code_type = ? AND code = ? AND modifier = ?",
-                                        [$payment_id, $PId, $Encounter, $Codetype, $Code, $Modifier]
-                                    );
-                                    $rowPayer = sqlFetchArray($resPayer);
-                                    $Ins = $rowPayer['payer_type'];
+                                        <div class="table-responsive-lg">
+                                            <table class="table table-sm table-bordered table-light" id="TableDistributedEdit">
+                                                <thead class="bg-dark text-light">
+                                                    <tr>
+                                                        <th>&nbsp;</th>
+                                                        <th><?php echo xlt('Patient Name'); ?></th>
+                                                        <th><?php echo xlt('Post For'); ?></th>
+                                                        <th><?php echo xlt('Service Date'); ?></th>
+                                                        <th><?php echo xlt('Enc#'); ?></th>
+                                                        <th><?php echo xlt('Code'); ?></th>
+                                                        <th><?php echo xlt('Charge'); ?></th>
+                                                        <th><?php echo xlt('Copay'); ?></th>
+                                                        <th><?php echo xlt('Bal-Due'); ?></th>
+                                                        <th><?php echo xlt('Allowed(c)'); ?></th><!-- (c) means it is calculated.Not stored one. -->
+                                                        <th><?php echo xlt('Payment'); ?></th>
+                                                        <th><?php echo xlt('Adj Amount'); ?></th>
+                                                        <th><?php echo xlt('Deductible'); ?></th>
+                                                        <th><?php echo xlt('Takeback'); ?></th>
+                                                        <th><?php echo xlt('MSP'); ?></th>
+                                                        <th><?php echo xlt('Resn'); ?></th>
+                                                        <th><?php echo xlt('Follow Up Reason'); ?></th>
+                                                    </tr>
+                                                </thead>
 
-                                    //Always associating the copay to a particular charge.
-                                    $BillingId = $RowSearch['id'];
-                                    $resId = sqlStatement("SELECT id FROM billing where code_type != 'ICD9' and code_type != 'COPAY' and
+                                            <?php }
+
+                                        while ($RowSearch = sqlFetchArray($ResultSearch)) {
+                                            $CountIndex++;
+                                            $CountIndexAbove++;
+                                            $ServiceDateArray = explode(' ', $RowSearch['date']);
+                                            $ServiceDate = oeFormatShortDate($ServiceDateArray[0]);
+                                            $Codetype = $RowSearch['code_type'];
+                                            $Code = $RowSearch['code'];
+                                            $Modifier = $RowSearch['modifier'];
+                                            if ($Modifier != '') {
+                                                $ModifierString = ", $Modifier";
+                                            } else {
+                                                $ModifierString = "";
+                                            }
+                                            $Fee = $RowSearch['fee'];
+                                            $Encounter = $RowSearch['encounter'];
+
+                                            $resPayer = sqlStatement(
+                                                "SELECT payer_type FROM ar_activity WHERE " .
+                                                    "deleted IS NULL AND session_id = ? AND pid = ? AND encounter = ? " .
+                                                    "AND code_type = ? AND code = ? AND modifier = ?",
+                                                [$payment_id, $PId, $Encounter, $Codetype, $Code, $Modifier]
+                                            );
+                                            $rowPayer = sqlFetchArray($resPayer);
+                                            $Ins = $rowPayer['payer_type'];
+
+                                            //Always associating the copay to a particular charge.
+                                            $BillingId = $RowSearch['id'];
+                                            $resId = sqlStatement("SELECT id FROM billing where code_type != 'ICD9' and code_type != 'COPAY' and
                                     pid =? and encounter =? and billing.activity!=0 order by id", [$PId, $Encounter]);
-                                    $rowId = sqlFetchArray($resId);
-                                    $Id = $rowId['id'];
+                                            $rowId = sqlFetchArray($resId);
+                                            $Id = $rowId['id'];
 
-                                    if ($BillingId != $Id) {//multiple cpt in single encounter
-                                        $Copay = 0.00;
-                                    } else {
-                                        $resCopay = sqlStatement("SELECT sum(fee) as copay FROM billing where
+                                            if ($BillingId != $Id) { //multiple cpt in single encounter
+                                                $Copay = 0.00;
+                                            } else {
+                                                $resCopay = sqlStatement("SELECT sum(fee) as copay FROM billing where
                                     code_type='COPAY' and pid =? and encounter =? and billing.activity!=0", [$PId, $Encounter]);
-                                        $rowCopay = sqlFetchArray($resCopay);
-                                        $Copay = $rowCopay['copay'] * -1;
+                                                $rowCopay = sqlFetchArray($resCopay);
+                                                $Copay = $rowCopay['copay'] * -1;
 
-                                        $resMoneyGot = sqlStatement(
-                                            "SELECT sum(pay_amount) AS PatientPay FROM ar_activity WHERE " .
-                                            "deleted IS NULL AND pid = ? and encounter = ? AND " .
-                                            "payer_type = 0 AND account_code = 'PCP'",
-                                            [$PId, $Encounter]
-                                        ); //new fees screen copay gives account_code='PCP'
-                                        $rowMoneyGot = sqlFetchArray($resMoneyGot);
-                                        $PatientPay = $rowMoneyGot['PatientPay'];
+                                                $resMoneyGot = sqlStatement(
+                                                    "SELECT sum(pay_amount) AS PatientPay FROM ar_activity WHERE " .
+                                                        "deleted IS NULL AND pid = ? and encounter = ? AND " .
+                                                        "payer_type = 0 AND account_code = 'PCP'",
+                                                    [$PId, $Encounter]
+                                                ); //new fees screen copay gives account_code='PCP'
+                                                $rowMoneyGot = sqlFetchArray($resMoneyGot);
+                                                $PatientPay = $rowMoneyGot['PatientPay'];
 
-                                        $Copay = $Copay + $PatientPay;
-                                    }
+                                                $Copay = $Copay + $PatientPay;
+                                            }
 
-                                    //For calculating Remainder
-                                    if ($Ins == 0) {//Fetch all values
-                                        $resMoneyGot = sqlStatement(
-                                            "SELECT sum(pay_amount) as MoneyGot FROM ar_activity WHERE " .
-                                            "deleted IS NULL AND pid = ? and code_type = ? AND code = ? AND " .
-                                            "modifier = ? AND encounter = ? AND " .
-                                            "!(payer_type = 0 AND account_code = 'PCP')",
-                                            [$PId, $Codetype, $Code, $Modifier, $Encounter]
-                                        );
-                                        //new fees screen copay gives account_code='PCP'
-                                        $rowMoneyGot = sqlFetchArray($resMoneyGot);
-                                        $MoneyGot = $rowMoneyGot['MoneyGot'];
+                                            //For calculating Remainder
+                                            if ($Ins == 0) { //Fetch all values
+                                                $resMoneyGot = sqlStatement(
+                                                    "SELECT sum(pay_amount) as MoneyGot FROM ar_activity WHERE " .
+                                                        "deleted IS NULL AND pid = ? and code_type = ? AND code = ? AND " .
+                                                        "modifier = ? AND encounter = ? AND " .
+                                                        "!(payer_type = 0 AND account_code = 'PCP')",
+                                                    [$PId, $Codetype, $Code, $Modifier, $Encounter]
+                                                );
+                                                //new fees screen copay gives account_code='PCP'
+                                                $rowMoneyGot = sqlFetchArray($resMoneyGot);
+                                                $MoneyGot = $rowMoneyGot['MoneyGot'];
 
-                                        $resMoneyAdjusted = sqlStatement(
-                                            "SELECT sum(adj_amount) AS MoneyAdjusted FROM ar_activity WHERE " .
-                                            "deleted IS NULL AND pid = ? and code_type = ? and code = ? AND " .
-                                            "modifier = ? AND encounter = ?",
-                                            [$PId, $Codetype, $Code, $Modifier, $Encounter]
-                                        );
-                                        $rowMoneyAdjusted = sqlFetchArray($resMoneyAdjusted);
-                                        $MoneyAdjusted = $rowMoneyAdjusted['MoneyAdjusted'];
-                                    } else {
-                                        //Fetch till that much got
-                                        //Fetch the HIGHEST sequence_no till this session.
-                                        //Used maily in  the case if primary/others pays once more.
-                                        $resSequence = sqlStatement("SELECT sequence_no from ar_activity where session_id=? and
+                                                $resMoneyAdjusted = sqlStatement(
+                                                    "SELECT sum(adj_amount) AS MoneyAdjusted FROM ar_activity WHERE " .
+                                                        "deleted IS NULL AND pid = ? and code_type = ? and code = ? AND " .
+                                                        "modifier = ? AND encounter = ?",
+                                                    [$PId, $Codetype, $Code, $Modifier, $Encounter]
+                                                );
+                                                $rowMoneyAdjusted = sqlFetchArray($resMoneyAdjusted);
+                                                $MoneyAdjusted = $rowMoneyAdjusted['MoneyAdjusted'];
+                                            } else {
+                                                //Fetch till that much got
+                                                //Fetch the HIGHEST sequence_no till this session.
+                                                //Used maily in  the case if primary/others pays once more.
+                                                $resSequence = sqlStatement("SELECT sequence_no from ar_activity where session_id=? and
                                     pid=? and encounter=? order by sequence_no desc ", [$payment_id, $PId, $Encounter]);
-                                        $rowSequence = sqlFetchArray($resSequence);
-                                        $Sequence = $rowSequence['sequence_no'];
+                                                $rowSequence = sqlFetchArray($resSequence);
+                                                $Sequence = $rowSequence['sequence_no'];
 
-                                        $resMoneyGot = sqlStatement(
-                                            "SELECT sum(pay_amount) as MoneyGot FROM ar_activity WHERE " .
-                                            "deleted IS NULL AND pid = ? and code_type = ? AND code = ? AND " .
-                                            "modifier = ? and encounter = ? AND " .
-                                            "payer_type > 0 and payer_type <= ? and sequence_no <= ?",
-                                            [$PId, $Codetype, $Code, $Modifier, $Encounter, $Ins, $Sequence]
-                                        );
-                                        $rowMoneyGot = sqlFetchArray($resMoneyGot);
-                                        $MoneyGot = $rowMoneyGot['MoneyGot'];
+                                                $resMoneyGot = sqlStatement(
+                                                    "SELECT sum(pay_amount) as MoneyGot FROM ar_activity WHERE " .
+                                                        "deleted IS NULL AND pid = ? and code_type = ? AND code = ? AND " .
+                                                        "modifier = ? and encounter = ? AND " .
+                                                        "payer_type > 0 and payer_type <= ? and sequence_no <= ?",
+                                                    [$PId, $Codetype, $Code, $Modifier, $Encounter, $Ins, $Sequence]
+                                                );
+                                                $rowMoneyGot = sqlFetchArray($resMoneyGot);
+                                                $MoneyGot = $rowMoneyGot['MoneyGot'];
 
-                                        $resMoneyAdjusted = sqlStatement(
-                                            "SELECT sum(adj_amount) AS MoneyAdjusted FROM ar_activity WHERE " .
-                                            "deleted IS NULL AND pid = ? and code_type = ? and code = ? AND " .
-                                            "modifier = ? AND encounter = ? AND payer_type > 0 AND " .
-                                            "payer_type <= ? and sequence_no <= ?",
-                                            [$PId, $Codetype, $Code, $Modifier, $Encounter, $Ins, $Sequence]
-                                        );
-                                        $rowMoneyAdjusted = sqlFetchArray($resMoneyAdjusted);
-                                        $MoneyAdjusted = $rowMoneyAdjusted['MoneyAdjusted'];
+                                                $resMoneyAdjusted = sqlStatement(
+                                                    "SELECT sum(adj_amount) AS MoneyAdjusted FROM ar_activity WHERE " .
+                                                        "deleted IS NULL AND pid = ? and code_type = ? and code = ? AND " .
+                                                        "modifier = ? AND encounter = ? AND payer_type > 0 AND " .
+                                                        "payer_type <= ? and sequence_no <= ?",
+                                                    [$PId, $Codetype, $Code, $Modifier, $Encounter, $Ins, $Sequence]
+                                                );
+                                                $rowMoneyAdjusted = sqlFetchArray($resMoneyAdjusted);
+                                                $MoneyAdjusted = $rowMoneyAdjusted['MoneyAdjusted'];
+                                            }
+                                            $Remainder = $Fee - $Copay - $MoneyGot - $MoneyAdjusted;
+                                            //For calculating RemainderJS.Used while restoring back the values.
+                                            if ($Ins == 0) { //Got just before Patient
+                                                $resMoneyGot = sqlStatement(
+                                                    "SELECT sum(pay_amount) AS MoneyGot FROM ar_activity WHERE " .
+                                                        "deleted IS NULL AND pid = ? AND code_type = ? AND code = ? AND " .
+                                                        "modifier = ? AND encounter = ? and payer_type != 0",
+                                                    [$PId, $Codetype, $Code, $Modifier, $Encounter]
+                                                );
+                                                $rowMoneyGot = sqlFetchArray($resMoneyGot);
+                                                $MoneyGot = $rowMoneyGot['MoneyGot'];
+
+                                                $resMoneyAdjusted = sqlStatement(
+                                                    "SELECT sum(adj_amount) AS MoneyAdjusted FROM ar_activity WHERE " .
+                                                        "deleted IS NULL AND pid = ? AND code_type = ? AND code = ? AND " .
+                                                        "modifier = ? and encounter = ? and payer_type != 0",
+                                                    [$PId, $Codetype, $Code, $Modifier, $Encounter]
+                                                );
+                                                $rowMoneyAdjusted = sqlFetchArray($resMoneyAdjusted);
+                                                $MoneyAdjusted = $rowMoneyAdjusted['MoneyAdjusted'];
+                                            } else {
+                                                //Got just before the previous
+                                                //Fetch the LOWEST sequence_no till this session.
+                                                //Used maily in  the case if primary/others pays once more.
+                                                $resSequence = sqlStatement(
+                                                    "SELECT sequence_no FROM ar_activity WHERE " .
+                                                        "session_id = ? AND deleted IS NULL AND pid = ? AND encounter = ? " .
+                                                        "order by sequence_no",
+                                                    [$payment_id, $PId, $Encounter]
+                                                );
+                                                $rowSequence = sqlFetchArray($resSequence);
+                                                $Sequence = $rowSequence['sequence_no'];
+
+                                                $resMoneyGot = sqlStatement(
+                                                    "SELECT sum(pay_amount) as MoneyGot FROM ar_activity WHERE " .
+                                                        "deleted IS NULL AND pid = ? AND code_type = ? AND code = ? " .
+                                                        "AND modifier = ? AND encounter = ? AND payer_type > 0 AND " .
+                                                        "payer_type <= ? AND sequence_no < ?",
+                                                    [$PId, $Codetype, $Code, $Modifier, $Encounter, $Ins, $Sequence]
+                                                );
+                                                $rowMoneyGot = sqlFetchArray($resMoneyGot);
+                                                $MoneyGot = $rowMoneyGot['MoneyGot'];
+
+                                                $resMoneyAdjusted = sqlStatement(
+                                                    "SELECT sum(adj_amount) as MoneyAdjusted FROM ar_activity WHERE " .
+                                                        "deleted IS NULL AND pid = ? and code_type = ? and code = ? AND " .
+                                                        "modifier = ? AND encounter = ? AND payer_type <= ? AND sequence_no < ?",
+                                                    [$PId, $Codetype, $Code, $Modifier, $Encounter, $Ins, $Sequence]
+                                                );
+                                                $rowMoneyAdjusted = sqlFetchArray($resMoneyAdjusted);
+                                                $MoneyAdjusted = $rowMoneyAdjusted['MoneyAdjusted'];
+                                            }
+                                            //Stored in hidden so that can be used while restoring back the values.
+                                            $RemainderJS = $Fee - $Copay - $MoneyGot - $MoneyAdjusted;
+
+                                            $resPayment = sqlStatement(
+                                                "SELECT pay_amount FROM ar_activity WHERE " .
+                                                    "deleted IS NULL AND session_id=? AND pid = ? AND encounter = ? AND " .
+                                                    "code_type = ? AND code = ? AND modifier = ? AND pay_amount > 0",
+                                                [$payment_id, $PId, $Encounter, $Codetype, $Code, $Modifier]
+                                            );
+                                            $rowPayment = sqlFetchArray($resPayment);
+                                            $PaymentDB = floatval($rowPayment['pay_amount'] ?? null);
+
+                                            $resPayment = sqlStatement(
+                                                "SELECT pay_amount FROM ar_activity WHERE " .
+                                                    "deleted IS NULL AND session_id = ? AND pid = ? AND encounter = ? AND " .
+                                                    "code_type = ? AND code = ? AND modifier = ? AND pay_amount < 0",
+                                                [$payment_id, $PId, $Encounter, $Codetype, $Code, $Modifier]
+                                            );
+                                            $rowPayment = sqlFetchArray($resPayment);
+                                            $TakebackDB = floatval($rowPayment['pay_amount'] ?? null);
+
+                                            $resPayment = sqlStatement(
+                                                "SELECT adj_amount FROM ar_activity WHERE " .
+                                                    "deleted IS NULL AND session_id = ? AND pid = ? AND encounter = ? AND " .
+                                                    "code_type = ? AND code = ? AND modifier = ? AND adj_amount != 0",
+                                                [$payment_id, $PId, $Encounter, $Codetype, $Code, $Modifier]
+                                            );
+                                            $rowPayment = sqlFetchArray($resPayment);
+                                            $AdjAmountDB = floatval($rowPayment['adj_amount'] ?? null);
+
+                                            $resPayment = sqlStatement(
+                                                "SELECT memo FROM ar_activity WHERE " .
+                                                    "deleted IS NULL AND session_id = ? AND pid = ? AND encounter = ? AND " .
+                                                    "code_type = ? AND code = ? AND modifier = ? AND " .
+                                                    "(memo LIKE 'Deductable%' OR memo LIKE 'Deductible%')",
+                                                [$payment_id, $PId, $Encounter, $Codetype, $Code, $Modifier]
+                                            );
+                                            $rowPayment = sqlFetchArray($resPayment);
+                                            $DeductibleDB = $rowPayment['memo'] ?? '';
+                                            $DeductibleDB = str_replace('Deductable $', '', $DeductibleDB);
+                                            $DeductibleDB = str_replace('Deductible $', '', $DeductibleDB);
+
+                                            $resPayment = sqlStatement(
+                                                "SELECT follow_up, follow_up_note FROM ar_activity WHERE " .
+                                                    "deleted IS NULL AND session_id = ? AND pid = ? AND encounter = ? AND " .
+                                                    "code_type = ? AND code = ? AND modifier = ? AND follow_up = 'y'",
+                                                [$payment_id, $PId, $Encounter, $Codetype, $Code, $Modifier]
+                                            );
+                                            $rowPayment = sqlFetchArray($resPayment);
+                                            $FollowUpDB = $rowPayment['follow_up'] ?? '';
+                                            $FollowUpReasonDB = $rowPayment['follow_up_note'] ?? '';
+
+                                            $resPayment = sqlStatement(
+                                                "SELECT reason_code FROM ar_activity WHERE " .
+                                                    "deleted IS NULL AND session_id = ? AND pid = ? AND encounter = ? AND " .
+                                                    "code_type = ? AND code = ? AND modifier = ?",
+                                                [$payment_id, $PId, $Encounter, $Codetype, $Code, $Modifier]
+                                            );
+                                            $rowPayment = sqlFetchArray($resPayment);
+                                            $ReasonCodeDB = $rowPayment['reason_code'];
+
+                                            if ($Ins == 1) {
+                                                $AllowedDB = number_format($Fee - floatval($AdjAmountDB), 2);
+                                            } else {
+                                                $AllowedDB = 0;
+                                            }
+
+                                            if ($Ins == 1) {
+                                                $bgcolor = '#ddddff';
+                                            } elseif ($Ins == 2) {
+                                                $bgcolor = '#ffdddd';
+                                            } elseif ($Ins == 3) {
+                                                $bgcolor = '#F2F1BC';
+                                            } elseif ($Ins == 0) {
+                                                $bgcolor = '#AAFFFF';
+                                            }
+                                            $paymenttot = $paymenttot + floatval($PaymentDB);
+                                            $adjamttot = $adjamttot + floatval($AdjAmountDB);
+                                            $deductibletot = $deductibletot + floatval($DeductibleDB);
+                                            $takebacktot = $takebacktot + floatval($TakebackDB);
+                                            $allowedtot = $allowedtot + floatval($AllowedDB);
+                                            ?>
+
+                                                <tr class="border-dark" bgcolor='<?php echo attr($bgcolor); ?>' class="text" id="trCharges<?php echo attr($CountIndex); ?>">
+                                                    <td align="left">
+                                                        <a href="#" onclick="javascript:return DeletePaymentDistribution(<?php echo attr_js($payment_id . '_' . $PId . '_' . $Encounter . '_' . $Code . '_' . $Modifier . '_' . $Codetype); ?>);"><img border="0" src="../pic/Delete.gif"></a>
+                                                    </td>
+                                                    <td align="left">
+                                                        <?php echo text($NameDB); ?><input name="HiddenPId<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($PId); ?>" />
+                                                    </td>
+                                                    <td align="left">
+                                                        <input id="HiddenIns<?php echo attr($CountIndex); ?>" name="HiddenIns<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($Ins); ?>" /><?php echo generate_select_list("payment_ins$CountIndex", "payment_ins", "$Ins", "Insurance/Patient", '', 'w-100', 'ActionOnInsPat("' . $CountIndex . '")'); ?>
+                                                    </td>
+                                                    <td>
+                                                        <?php echo text($ServiceDate); ?>
+                                                    </td>
+                                                    <td align="right">
+                                                        <input name="HiddenEncounter<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($Encounter); ?>" /><?php echo text($Encounter); ?>
+                                                    </td>
+                                                    <td>
+                                                        <input name="HiddenCodetype<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($Codetype); ?>" />
+                                                        <input name="HiddenCode<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($Code); ?>" /><?php echo text($Codetype . "-" . $Code . $ModifierString); ?>
+                                                        <input name="HiddenModifier<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($Modifier); ?>" />
+                                                    </td>
+                                                    <td align="right">
+                                                        <input id="HiddenChargeAmount<?php echo attr($CountIndex); ?>" name="HiddenChargeAmount<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($Fee); ?>" /><?php echo text($Fee); ?>
+                                                    </td>
+                                                    <td align="right">
+                                                        <input id="HiddenCopayAmount<?php echo attr($CountIndex); ?>" name="HiddenCopayAmount<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($Copay); ?>"><?php echo text(number_format($Copay, 2)); ?>
+                                                    </td>
+                                                    <td align="right" id="RemainderTd<?php echo attr($CountIndex); ?>"> <?php echo text(round($Remainder, 2)); ?> </td>
+                                                    <input name="HiddenRemainderTd<?php echo attr($CountIndex); ?>" id="HiddenRemainderTd<?php echo attr($CountIndex); ?>" value="<?php echo attr(round($Remainder, 2)); ?>" type="hidden" />
+                                                    <td>
+                                                        <input autocomplete="off" id="Allowed<?php echo attr($CountIndex); ?>" name="Allowed<?php echo attr($CountIndex); ?>" onchange="ValidateNumeric(this);ScreenAdjustment(this,<?php echo attr_js($CountIndex); ?>);UpdateTotalValues(1,<?php echo attr_js($TotalRows); ?>,'Allowed','allowtotal');UpdateTotalValues(1,<?php echo attr_js($TotalRows); ?>,'Payment','paymenttotal');UpdateTotalValues(1,<?php echo attr_js($TotalRows); ?>,'AdjAmount','AdjAmounttotal');RestoreValues(<?php echo attr_js($CountIndex); ?>)" onkeydown="PreventIt(event)" class="text-right input-sm w-100" type="text" value="<?php echo attr($AllowedDB); ?>" />
+                                                    </td>
+
+                                                    <td>
+                                                        <input autocomplete="off" id="Payment<?php echo attr($CountIndex); ?>" name="Payment<?php echo attr($CountIndex); ?>" onchange="ValidateNumeric(this);ScreenAdjustment(this,<?php echo attr_js($CountIndex); ?>);UpdateTotalValues(1,<?php echo attr_js($TotalRows); ?>,'Payment','paymenttotal');RestoreValues(<?php echo attr_js($CountIndex); ?>)" onkeydown="PreventIt(event)" class="text-right  input-sm w-100" type="text" value="<?php echo attr($PaymentDB); ?>" />
+                                                    </td>
+                                                    <td>
+                                                        <input autocomplete="off" id="AdjAmount<?php echo attr($CountIndex); ?>" name="AdjAmount<?php echo attr($CountIndex); ?>" onchange="ValidateNumeric(this);ScreenAdjustment(this,<?php echo attr_js($CountIndex); ?>);UpdateTotalValues(1,<?php echo attr_js($TotalRows); ?>,'AdjAmount','AdjAmounttotal');RestoreValues(<?php echo attr_js($CountIndex); ?>)" onkeydown="PreventIt(event)" class="text-right  input-sm w-100" type="text" value="<?php echo attr($AdjAmountDB); ?>" />
+                                                    </td>
+                                                    <td>
+                                                        <input autocomplete="off" id="Deductible<?php echo attr($CountIndex); ?>" name="Deductible<?php echo attr($CountIndex); ?>" onchange="ValidateNumeric(this);UpdateTotalValues(1,<?php echo attr_js($TotalRows); ?>,'Deductible','deductibletotal');" onkeydown="PreventIt(event)" class="text-right  input-sm w-100" type="text" value="<?php echo attr($DeductibleDB); ?>" />
+                                                    </td>
+                                                    <td>
+                                                        <input autocomplete="off" id="Takeback<?php echo attr($CountIndex); ?>" name="Takeback<?php echo attr($CountIndex); ?>" onchange="ValidateNumeric(this);ScreenAdjustment(this,<?php echo attr_js($CountIndex); ?>);UpdateTotalValues(1,<?php echo attr_js($TotalRows); ?>,'Takeback','takebacktotal');RestoreValues(<?php echo attr_js($CountIndex); ?>)" onkeydown="PreventIt(event)" class="text-right  input-sm w-100" type="text" value="<?php echo attr($TakebackDB); ?>" />
+                                                    </td>
+                                                    <td align="left">
+                                                        <input id="HiddenReasonCode<?php echo attr($CountIndex); ?>" name="HiddenReasonCode<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($ReasonCodeDB); ?>" /><?php echo generate_select_list("ReasonCode$CountIndex", "msp_remit_codes", "$ReasonCodeDB", "MSP", '', 'w-100'); ?>
+                                                    </td>
+                                                    <td align="center">
+                                                        <input id="FollowUp<?php echo attr($CountIndex); ?>" name="FollowUp<?php echo attr($CountIndex); ?>" onclick="ActionFollowUp(<?php echo attr_js($CountIndex); ?>)" type="checkbox" value="y" />
+                                                    </td>
+                                                    <td>
+                                                        <input id="FollowUpReason<?php echo attr($CountIndex); ?>" name="FollowUpReason<?php echo attr($CountIndex); ?>" onkeydown="PreventIt(event)" class=" input-sm w-100" type="text" value="<?php echo attr($FollowUpReasonDB); ?>" readonly>
+                                                    </td>
+                                                </tr><?php
+                                                    } //End of while ($RowSearch = sqlFetchArray($ResultSearch))
+                                                        ?>
+                                        <?php
+                                    } //End of if(sqlNumRows($ResultSearch)>0)
+                                } while ($RowSearchSub = sqlFetchArray($ResultSearchSub));
+                                if ($Table == 'yes') { ?>
+
+                                        <tr>
+                                            <td class="text-right text-dark" align="left" colspan="9"><b><?php echo (xlt("Totals") . ": ") ?></b></td>
+                                            <td class="bg-dark text-secondary" align="center" id="allowtotal"><?php echo text(number_format($allowedtot, 2)); ?></td>
+                                            <td class="bg-dark text-secondary" align="center" id="paymenttotal"><?php echo text(number_format($paymenttot, 2)); ?></td>
+                                            <td class="bg-dark text-secondary" align="center" id="AdjAmounttotal"><?php echo text(number_format($adjamttot, 2)); ?></td>
+                                            <td class="bg-dark text-secondary" align="center" id="deductibletotal"><?php echo text(number_format($deductibletot, 2)); ?></td>
+                                            <td class="bg-dark text-secondary" align="center" id="takebacktotal"><?php echo text(number_format($takebacktot, 2)); ?></td>
+                                            <td align="center" colspan="2">&nbsp;</td>
+                                            <td align="right">
+                                                <button type="button" class="btn btn-sm btn-secondary btn-refresh pull-right"
+                                                    onclick="updateAllFormTotals(<?php echo attr_js($TotalRows); ?>);"><?php echo xlt("Recalculate"); ?></button>
+                                            </td>
+                                        </tr>
+                                            </table>
+                                            <input type="checkbox" name="no insurance" value="1"
+                                                <?php echo $noInsurance ? 'checked' : ''; ?>>
+                                            Has No Insurance
+                                            </label><br>
+                                            <label>
+                                                <input type="checkbox" name="primary_insurance" value="1"
+                                                    <?php echo $primaryInsurance ? 'checked' : ''; ?>>
+                                                Has Primary Insurance
+                                            </label><br>
+                                            <label>
+                                                <input type="checkbox" name="secondary_insurance" value="1"
+                                                    <?php echo $secondaryInsurance ? 'checked' : ''; ?>>
+                                                Has Secondary Insurance
+                                            </label><br>
+                                            <label>
+                                                <input type="checkbox" name="tertiary_insurance" value="1"
+                                                    <?php echo $tertiaryInsurance ? 'checked' : ''; ?>>
+                                                Has Tertiary Insurance
+                                            </label><br>
+                                        <?php
                                     }
-                                    $Remainder = $Fee - $Copay - $MoneyGot - $MoneyAdjusted;
-                                    //For calculating RemainderJS.Used while restoring back the values.
-                                    if ($Ins == 0) {//Got just before Patient
-                                        $resMoneyGot = sqlStatement(
-                                            "SELECT sum(pay_amount) AS MoneyGot FROM ar_activity WHERE " .
-                                            "deleted IS NULL AND pid = ? AND code_type = ? AND code = ? AND " .
-                                            "modifier = ? AND encounter = ? and payer_type != 0",
-                                            [$PId, $Codetype, $Code, $Modifier, $Encounter]
-                                        );
-                                        $rowMoneyGot = sqlFetchArray($resMoneyGot);
-                                        $MoneyGot = $rowMoneyGot['MoneyGot'];
-
-                                        $resMoneyAdjusted = sqlStatement(
-                                            "SELECT sum(adj_amount) AS MoneyAdjusted FROM ar_activity WHERE " .
-                                            "deleted IS NULL AND pid = ? AND code_type = ? AND code = ? AND " .
-                                            "modifier = ? and encounter = ? and payer_type != 0",
-                                            [$PId, $Codetype, $Code, $Modifier, $Encounter]
-                                        );
-                                        $rowMoneyAdjusted = sqlFetchArray($resMoneyAdjusted);
-                                        $MoneyAdjusted = $rowMoneyAdjusted['MoneyAdjusted'];
-                                    } else {
-                                        //Got just before the previous
-                                        //Fetch the LOWEST sequence_no till this session.
-                                        //Used maily in  the case if primary/others pays once more.
-                                        $resSequence = sqlStatement(
-                                            "SELECT sequence_no FROM ar_activity WHERE " .
-                                            "session_id = ? AND deleted IS NULL AND pid = ? AND encounter = ? " .
-                                            "order by sequence_no",
-                                            [$payment_id, $PId, $Encounter]
-                                        );
-                                        $rowSequence = sqlFetchArray($resSequence);
-                                        $Sequence = $rowSequence['sequence_no'];
-
-                                        $resMoneyGot = sqlStatement(
-                                            "SELECT sum(pay_amount) as MoneyGot FROM ar_activity WHERE " .
-                                            "deleted IS NULL AND pid = ? AND code_type = ? AND code = ? " .
-                                            "AND modifier = ? AND encounter = ? AND payer_type > 0 AND " .
-                                            "payer_type <= ? AND sequence_no < ?",
-                                            [$PId, $Codetype, $Code, $Modifier, $Encounter, $Ins, $Sequence]
-                                        );
-                                        $rowMoneyGot = sqlFetchArray($resMoneyGot);
-                                        $MoneyGot = $rowMoneyGot['MoneyGot'];
-
-                                        $resMoneyAdjusted = sqlStatement(
-                                            "SELECT sum(adj_amount) as MoneyAdjusted FROM ar_activity WHERE " .
-                                            "deleted IS NULL AND pid = ? and code_type = ? and code = ? AND " .
-                                            "modifier = ? AND encounter = ? AND payer_type <= ? AND sequence_no < ?",
-                                            [$PId, $Codetype, $Code, $Modifier, $Encounter, $Ins, $Sequence]
-                                        );
-                                        $rowMoneyAdjusted = sqlFetchArray($resMoneyAdjusted);
-                                        $MoneyAdjusted = $rowMoneyAdjusted['MoneyAdjusted'];
-                                    }
-                                    //Stored in hidden so that can be used while restoring back the values.
-                                    $RemainderJS = $Fee - $Copay - $MoneyGot - $MoneyAdjusted;
-
-                                    $resPayment = sqlStatement(
-                                        "SELECT pay_amount FROM ar_activity WHERE " .
-                                        "deleted IS NULL AND session_id=? AND pid = ? AND encounter = ? AND " .
-                                        "code_type = ? AND code = ? AND modifier = ? AND pay_amount > 0",
-                                        [$payment_id, $PId, $Encounter, $Codetype, $Code, $Modifier]
-                                    );
-                                    $rowPayment = sqlFetchArray($resPayment);
-                                    $PaymentDB = floatval($rowPayment['pay_amount'] ?? null);
-
-                                    $resPayment = sqlStatement(
-                                        "SELECT pay_amount FROM ar_activity WHERE " .
-                                        "deleted IS NULL AND session_id = ? AND pid = ? AND encounter = ? AND " .
-                                        "code_type = ? AND code = ? AND modifier = ? AND pay_amount < 0",
-                                        [$payment_id, $PId, $Encounter, $Codetype, $Code, $Modifier]
-                                    );
-                                    $rowPayment = sqlFetchArray($resPayment);
-                                    $TakebackDB = floatval($rowPayment['pay_amount'] ?? null);
-
-                                    $resPayment = sqlStatement(
-                                        "SELECT adj_amount FROM ar_activity WHERE " .
-                                        "deleted IS NULL AND session_id = ? AND pid = ? AND encounter = ? AND " .
-                                        "code_type = ? AND code = ? AND modifier = ? AND adj_amount != 0",
-                                        [$payment_id, $PId, $Encounter, $Codetype, $Code, $Modifier]
-                                    );
-                                    $rowPayment = sqlFetchArray($resPayment);
-                                    $AdjAmountDB = floatval($rowPayment['adj_amount'] ?? null);
-
-                                    $resPayment = sqlStatement(
-                                        "SELECT memo FROM ar_activity WHERE " .
-                                        "deleted IS NULL AND session_id = ? AND pid = ? AND encounter = ? AND " .
-                                        "code_type = ? AND code = ? AND modifier = ? AND " .
-                                        "(memo LIKE 'Deductable%' OR memo LIKE 'Deductible%')",
-                                        [$payment_id, $PId, $Encounter, $Codetype, $Code, $Modifier]
-                                    );
-                                    $rowPayment = sqlFetchArray($resPayment);
-                                    $DeductibleDB = $rowPayment['memo'] ?? '';
-                                    $DeductibleDB = str_replace('Deductable $', '', $DeductibleDB);
-                                    $DeductibleDB = str_replace('Deductible $', '', $DeductibleDB);
-
-                                    $resPayment = sqlStatement(
-                                        "SELECT follow_up, follow_up_note FROM ar_activity WHERE " .
-                                        "deleted IS NULL AND session_id = ? AND pid = ? AND encounter = ? AND " .
-                                        "code_type = ? AND code = ? AND modifier = ? AND follow_up = 'y'",
-                                        [$payment_id, $PId, $Encounter, $Codetype, $Code, $Modifier]
-                                    );
-                                    $rowPayment = sqlFetchArray($resPayment);
-                                    $FollowUpDB = $rowPayment['follow_up'] ?? '';
-                                    $FollowUpReasonDB = $rowPayment['follow_up_note'] ?? '';
-
-                                    $resPayment = sqlStatement(
-                                        "SELECT reason_code FROM ar_activity WHERE " .
-                                        "deleted IS NULL AND session_id = ? AND pid = ? AND encounter = ? AND " .
-                                        "code_type = ? AND code = ? AND modifier = ?",
-                                        [$payment_id, $PId, $Encounter, $Codetype, $Code, $Modifier]
-                                    );
-                                    $rowPayment = sqlFetchArray($resPayment);
-                                    $ReasonCodeDB = $rowPayment['reason_code'];
-
-                                    if ($Ins == 1) {
-                                        $AllowedDB = number_format($Fee - floatval($AdjAmountDB), 2);
-                                    } else {
-                                        $AllowedDB = 0;
-                                    }
-
-                                    if ($Ins == 1) {
-                                        $bgcolor = '#ddddff';
-                                    } elseif ($Ins == 2) {
-                                        $bgcolor = '#ffdddd';
-                                    } elseif ($Ins == 3) {
-                                        $bgcolor = '#F2F1BC';
-                                    } elseif ($Ins == 0) {
-                                        $bgcolor = '#AAFFFF';
-                                    }
-                                    $paymenttot = $paymenttot + floatval($PaymentDB);
-                                    $adjamttot = $adjamttot + floatval($AdjAmountDB);
-                                    $deductibletot = $deductibletot + floatval($DeductibleDB);
-                                    $takebacktot = $takebacktot + floatval($TakebackDB);
-                                    $allowedtot = $allowedtot + floatval($AllowedDB);
+                                        ?>
+                                    <?php
+                                    echo '<br/>';
+                                } //End of if($RowSearchSub = sqlFetchArray($ResultSearchSub))
                                     ?>
-
-                                <tr class="border-dark" bgcolor='<?php echo attr($bgcolor); ?>' class="text" id="trCharges<?php echo attr($CountIndex); ?>">
-                                    <td align="left">
-                                        <a href="#" onclick="javascript:return DeletePaymentDistribution(<?php echo attr_js($payment_id . '_' . $PId . '_' . $Encounter . '_' . $Code . '_' . $Modifier . '_' . $Codetype); ?>);"><img border="0" src="../pic/Delete.gif"></a>
-                                    </td>
-                                    <td align="left">
-                                        <?php echo text($NameDB); ?><input name="HiddenPId<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($PId); ?>" />
-                                    </td>
-                                    <td align="left">
-                                        <input id="HiddenIns<?php echo attr($CountIndex); ?>" name="HiddenIns<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($Ins); ?>" /><?php echo generate_select_list("payment_ins$CountIndex", "payment_ins", "$Ins", "Insurance/Patient", '', 'w-100', 'ActionOnInsPat("' . $CountIndex . '")'); ?>
-                                    </td>
-                                    <td>
-                                        <?php echo text($ServiceDate); ?>
-                                    </td>
-                                    <td align="right">
-                                        <input name="HiddenEncounter<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($Encounter); ?>" /><?php echo text($Encounter); ?>
-                                    </td>
-                                    <td>
-                                        <input name="HiddenCodetype<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($Codetype); ?>" />
-                                        <input name="HiddenCode<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($Code); ?>" /><?php echo text($Codetype . "-" . $Code . $ModifierString); ?>
-                                        <input name="HiddenModifier<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($Modifier); ?>" />
-                                    </td>
-                                    <td align="right">
-                                        <input id="HiddenChargeAmount<?php echo attr($CountIndex); ?>" name="HiddenChargeAmount<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($Fee); ?>" /><?php echo text($Fee); ?>
-                                    </td>
-                                    <td align="right">
-                                        <input id="HiddenCopayAmount<?php echo attr($CountIndex); ?>" name="HiddenCopayAmount<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($Copay); ?>"><?php echo text(number_format($Copay, 2)); ?>
-                                    </td>
-                                    <td align="right" id="RemainderTd<?php echo attr($CountIndex); ?>"> <?php echo text(round($Remainder, 2)); ?> </td>
-                                    <input name="HiddenRemainderTd<?php echo attr($CountIndex); ?>" id="HiddenRemainderTd<?php echo attr($CountIndex); ?>" value="<?php echo attr(round($Remainder, 2)); ?>" type="hidden" />
-                                    <td>
-                                        <input autocomplete="off" id="Allowed<?php echo attr($CountIndex); ?>" name="Allowed<?php echo attr($CountIndex); ?>" onchange="ValidateNumeric(this);ScreenAdjustment(this,<?php echo attr_js($CountIndex); ?>);UpdateTotalValues(1,<?php echo attr_js($TotalRows); ?>,'Allowed','allowtotal');UpdateTotalValues(1,<?php echo attr_js($TotalRows); ?>,'Payment','paymenttotal');UpdateTotalValues(1,<?php echo attr_js($TotalRows); ?>,'AdjAmount','AdjAmounttotal');RestoreValues(<?php echo attr_js($CountIndex); ?>)" onkeydown="PreventIt(event)"  class="text-right input-sm w-100" type="text" value="<?php echo attr($AllowedDB); ?>" />
-                                    </td>
-
-                                    <td>
-                                        <input autocomplete="off" id="Payment<?php echo attr($CountIndex); ?>" name="Payment<?php echo attr($CountIndex); ?>" onchange="ValidateNumeric(this);ScreenAdjustment(this,<?php echo attr_js($CountIndex); ?>);UpdateTotalValues(1,<?php echo attr_js($TotalRows); ?>,'Payment','paymenttotal');RestoreValues(<?php echo attr_js($CountIndex); ?>)" onkeydown="PreventIt(event)"  class="text-right  input-sm w-100" type="text" value="<?php echo attr($PaymentDB); ?>" />
-                                    </td>
-                                    <td>
-                                        <input autocomplete="off" id="AdjAmount<?php echo attr($CountIndex); ?>" name="AdjAmount<?php echo attr($CountIndex); ?>" onchange="ValidateNumeric(this);ScreenAdjustment(this,<?php echo attr_js($CountIndex); ?>);UpdateTotalValues(1,<?php echo attr_js($TotalRows); ?>,'AdjAmount','AdjAmounttotal');RestoreValues(<?php echo attr_js($CountIndex); ?>)" onkeydown="PreventIt(event)"  class="text-right  input-sm w-100" type="text" value="<?php echo attr($AdjAmountDB); ?>" />
-                                    </td>
-                                    <td>
-                                        <input autocomplete="off" id="Deductible<?php echo attr($CountIndex); ?>" name="Deductible<?php echo attr($CountIndex); ?>" onchange="ValidateNumeric(this);UpdateTotalValues(1,<?php echo attr_js($TotalRows); ?>,'Deductible','deductibletotal');" onkeydown="PreventIt(event)"  class="text-right  input-sm w-100" type="text" value="<?php echo attr($DeductibleDB); ?>" />
-                                    </td>
-                                    <td>
-                                        <input autocomplete="off" id="Takeback<?php echo attr($CountIndex); ?>" name="Takeback<?php echo attr($CountIndex); ?>" onchange="ValidateNumeric(this);ScreenAdjustment(this,<?php echo attr_js($CountIndex); ?>);UpdateTotalValues(1,<?php echo attr_js($TotalRows); ?>,'Takeback','takebacktotal');RestoreValues(<?php echo attr_js($CountIndex); ?>)" onkeydown="PreventIt(event)"  class="text-right  input-sm w-100" type="text" value="<?php echo attr($TakebackDB); ?>" />
-                                    </td>
-                                    <td align="left">
-                                        <input id="HiddenReasonCode<?php echo attr($CountIndex); ?>" name="HiddenReasonCode<?php echo attr($CountIndex); ?>" type="hidden" value="<?php echo attr($ReasonCodeDB); ?>" /><?php echo generate_select_list("ReasonCode$CountIndex", "msp_remit_codes", "$ReasonCodeDB", "MSP", '', 'w-100'); ?>
-                                    </td>
-                                    <td align="center">
-                                        <input id="FollowUp<?php echo attr($CountIndex); ?>" name="FollowUp<?php echo attr($CountIndex); ?>" onclick="ActionFollowUp(<?php echo attr_js($CountIndex); ?>)" type="checkbox" value="y" />
-                                    </td>
-                                    <td>
-                                        <input id="FollowUpReason<?php echo attr($CountIndex); ?>" name="FollowUpReason<?php echo attr($CountIndex); ?>" onkeydown="PreventIt(event)" class=" input-sm w-100" type="text" value="<?php echo attr($FollowUpReasonDB); ?>" readonly>
-                                    </td>
-                                    </tr><?php
-                                }//End of while ($RowSearch = sqlFetchArray($ResultSearch))
-                                ?>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <?php
+                                        require_once("payment_pat_sel.inc.php"); //Patient ajax section and listing of charges.
+                                        ?>
+                                    </div>
                                 <?php
-                            }//End of if(sqlNumRows($ResultSearch)>0)
-                        } while ($RowSearchSub = sqlFetchArray($ResultSearchSub));
-                        if ($Table == 'yes') { ?>
-                            <tr>
-                                <td class="text-right text-dark" align="left" colspan="9"><b><?php echo (xlt("Totals") . ": ") ?></b></td>
-                                <td class="bg-dark text-secondary" align="center" id="allowtotal"><?php echo text(number_format($allowedtot, 2)); ?></td>
-                                <td class="bg-dark text-secondary" align="center" id="paymenttotal"><?php echo text(number_format($paymenttot, 2)); ?></td>
-                                <td class="bg-dark text-secondary" align="center" id="AdjAmounttotal"><?php echo text(number_format($adjamttot, 2)); ?></td>
-                                <td class="bg-dark text-secondary" align="center" id="deductibletotal"><?php echo text(number_format($deductibletot, 2)); ?></td>
-                                <td class="bg-dark text-secondary" align="center" id="takebacktotal"><?php echo text(number_format($takebacktot, 2)); ?></td>
-                                <td align="center" colspan="2">&nbsp;</td>
-                                <td align="right">
-                                    <button type="button" class="btn btn-sm btn-secondary btn-refresh pull-right"
-                                        onclick="updateAllFormTotals(<?php echo attr_js($TotalRows); ?>);"><?php echo xlt("Recalculate"); ?></button>
-                                </td>
-                            </tr>
-                            </table>
-                            <?php
-                        }
-                        ?>
-                        <?php
-                        echo '<br/>';
-                    }//End of if($RowSearchSub = sqlFetchArray($ResultSearchSub))
-                    ?>
-                    </div>
-                    </div>
-                    <div>
-                        <?php
-                        require_once("payment_pat_sel.inc.php"); //Patient ajax section and listing of charges.
-                        ?>
-                    </div>
-                    <?php
-                }//End of if($payment_id*1>0)
-                ?>
-                <?php //can change position of buttons by creating a class 'position-override' and adding rule text-align:center or right as the case may be in individual stylesheets ?>
-                <div class="form-group clearfix">
-                    <div class="col-sm-12 text-left position-override">
-                        <div class="btn-group" role="group">
-                            <a class="btn btn-secondary btn-save" href="#" onclick="return ModifyPayments();"><span><?php echo xlt('Modify Payments'); ?></span></a>
-                            <a class="btn btn-secondary btn-save" href="#" onclick="return FinishPayments();"><span><?php echo xlt('Finish Payments'); ?></span></a>
-                        </div>
-                    </div>
-                </div>
-                <div class="row">
-                    <input type="hidden" name="hidden_patient_code" id="hidden_patient_code" value="<?php echo attr($hidden_patient_code ?? ''); ?>" />
-                    <input type='hidden' name='mode' id='mode' value='' />
-                    <input type='hidden' name='ajax_mode' id='ajax_mode' value='' />
-                    <input type="hidden" name="after_value" id="after_value" value="<?php echo attr($_POST["mode"] ?? ''); ?>" />
-                    <input type="hidden" name="payment_id" id="payment_id" value="<?php echo attr($payment_id); ?>" />
-                    <input type="hidden" name="hidden_type_code" id="hidden_type_code" value="<?php echo attr($TypeCode); ?>" />
-                    <input type='hidden' name='global_amount' id='global_amount' value='' />
-                    <input type='hidden' name='DeletePaymentDistributionId' id='DeletePaymentDistributionId' value='' />
-                    <input type="hidden" name="ActionStatus" id="ActionStatus" value="<?php echo attr($Message ?? ''); ?>" />
-                    <input type='hidden' name='CountIndexAbove' id='CountIndexAbove' value='<?php echo (int) attr($CountIndexAbove); ?>' />
-                    <input type='hidden' name='CountIndexBelow' id='CountIndexBelow' value='<?php echo (int) attr($CountIndexBelow); ?>' />
-                    <input type="hidden" name="ParentPage" id="ParentPage" value="<?php echo attr($_REQUEST['ParentPage'] ?? ''); ?>" />
-                </div>
+                            } //End of if($payment_id*1>0)
+                                ?>
+                                <?php //can change position of buttons by creating a class 'position-override' and adding rule text-align:center or right as the case may be in individual stylesheets 
+                                ?>
+                                <div class="form-group clearfix">
+                                    <div class="col-sm-12 text-left position-override">
+                                        <div class="btn-group" role="group">
+                                            <a class="btn btn-secondary btn-save" href="#" onclick="return ModifyPayments();"><span><?php echo xlt('Modify Payments'); ?></span></a>
+                                            <a class="btn btn-secondary btn-save" href="#" onclick="return FinishPayments();"><span><?php echo xlt('Finish Payments'); ?></span></a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <input type="hidden" name="hidden_patient_code" id="hidden_patient_code" value="<?php echo attr($hidden_patient_code ?? ''); ?>" />
+                                    <input type='hidden' name='mode' id='mode' value='' />
+                                    <input type='hidden' name='ajax_mode' id='ajax_mode' value='' />
+                                    <input type="hidden" name="after_value" id="after_value" value="<?php echo attr($_POST["mode"] ?? ''); ?>" />
+                                    <input type="hidden" name="payment_id" id="payment_id" value="<?php echo attr($payment_id); ?>" />
+                                    <input type="hidden" name="hidden_type_code" id="hidden_type_code" value="<?php echo attr($TypeCode); ?>" />
+                                    <input type='hidden' name='global_amount' id='global_amount' value='' />
+                                    <input type='hidden' name='DeletePaymentDistributionId' id='DeletePaymentDistributionId' value='' />
+                                    <input type="hidden" name="ActionStatus" id="ActionStatus" value="<?php echo attr($Message ?? ''); ?>" />
+                                    <input type='hidden' name='CountIndexAbove' id='CountIndexAbove' value='<?php echo (int) attr($CountIndexAbove); ?>' />
+                                    <input type='hidden' name='CountIndexBelow' id='CountIndexBelow' value='<?php echo (int) attr($CountIndexBelow); ?>' />
+                                    <input type="hidden" name="ParentPage" id="ParentPage" value="<?php echo attr($_REQUEST['ParentPage'] ?? ''); ?>" />
+                                </div>
         </form>
     </div><!-- End of container div-->
     <script>
-        function ResetForm() {//Resets form used in the 'Cancel Changes' button in the master screen.
+        function ResetForm() { //Resets form used in the 'Cancel Changes' button in the master screen.
             document.forms[0].reset();
             document.getElementById('TdUnappliedAmount').innerHTML = '0.00';
             document.getElementById('div_insurance_or_patient').innerHTML = '&nbsp;';
-            CheckVisible('yes');//Payment Method is made 'Check Payment' and the Check box is made visible.
-            PayingEntityAction();//Paying Entity is made 'insurance' and Payment Category is 'Insurance Payment'
+            CheckVisible('yes'); //Payment Method is made 'Check Payment' and the Check box is made visible.
+            PayingEntityAction(); //Paying Entity is made 'insurance' and Payment Category is 'Insurance Payment'
         }
 
-        $(function () {
+        $(function() {
             if (document.getElementById("TableDistributePortion")) {
-                $("html").animate({scrollTop: $("#TableDistributePortion").offset().top}, 800);
+                $("html").animate({
+                    scrollTop: $("#TableDistributePortion").offset().top
+                }, 800);
             } else if (document.getElementById("TableDistributedEdit")) {
-                $("html").animate({scrollTop: $("#TableDistributedEdit").offset().top}, 800);
+                $("html").animate({
+                    scrollTop: $("#TableDistributedEdit").offset().top
+                }, 800);
             }
         });
     </script>
 </body>
+
 </html>

@@ -1687,6 +1687,30 @@
             ]
           },
           {
+            "label": "Alab Payment Report",
+            "menu_id": "rep0",
+            "target": "rep",
+            "url": "/interface/reports/alab_payment_report.php",
+            "children": [],
+            "requirement": 0,
+            "acl_req": [
+              "acct",
+              "rep_a"
+            ]
+          },
+          {
+            "label": "Alab charge report",
+            "menu_id": "rep0",
+            "target": "rep",
+            "url": "/interface/reports/auglab_charge_report.php",
+            "children": [],
+            "requirement": 0,
+            "acl_req": [
+              "acct",
+              "rep_a"
+            ]
+          },
+          {
             "label": "Pat Ledger",
             "menu_id": "rep0",
             "target": "rep",
