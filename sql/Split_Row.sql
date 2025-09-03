@@ -567,7 +567,7 @@ sub.sales,
 sub.payments,
 sub.adjustments,
 sub.cpt_codes
-having count(*) > 1;
+having count(*) > 0;
 
 -- FINAL REMOVING DUPLICATE CPT USING COUNT(*) END 
 
