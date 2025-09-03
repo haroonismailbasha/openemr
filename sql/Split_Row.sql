@@ -571,7 +571,68 @@ having count(*) > 0;
 
 -- FINAL REMOVING DUPLICATE CPT USING COUNT(*) END 
 
+-- FINALLLL START Splitted the CPT, matched the output format of billing view Tested in ALAB
 
+select *, count(*) from ( 
+SELECT
+	f.id,f.date,f.pid,CONCAT(w.lname, ', ', w.fname) AS provider_id,f.encounter,f.last_level_billed,f.last_level_closed,f.last_stmt_date,f.stmt_count,f.invoice_refno,f.in_collection,p.fname,
+	p.mname,p.lname,p.street,p.city,p.state,p.postal_code,p.phone_home,p.ss,p.billing_note,p.pubpid,p.DOB,CONCAT(u.lname, ', ', u.fname) AS referrer,
+	(SELECT bill_date FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type != 'COPAY' LIMIT 1) AS bill_date,
+	(SELECT SUM(b.fee) FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type != 'COPAY' ) AS charges,
+	(SELECT SUM(b.fee) FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type = 'COPAY' ) AS copays,
+	(SELECT s.fee FROM drug_sales AS s WHERE s.pid = f.pid AND s.encounter = f.encounter ) AS sales,
+	(SELECT SUM(a.pay_amount) FROM ar_activity AS a WHERE a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS payments,
+	(SELECT SUM(a.adj_amount) FROM ar_activity AS a WHERE a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS adjustments,
+	cpt.cpt_codes
+FROM
+	form_encounter AS f JOIN patient_data AS p ON p.pid = f.pid /** haroon start **/
+JOIN billing AS b ON f.pid = b.pid AND f.encounter = b.encounter/** haroon end **/
+LEFT OUTER JOIN users AS u ON u.id = f.referring_provider_id
+LEFT OUTER JOIN users AS w ON w.id = f.provider_id
+LEFT JOIN ( SELECT code AS cpt_codes, pid , encounter /*, GROUP_CONCAT(DISTINCT code ORDER BY code SEPARATOR ',') AS cpt_codes */
+FROM
+	billing
+WHERE
+	code_type = 'CPT4' AND activity = 1 /* GROUP BY 	pid, encounter */  ) cpt ON cpt.pid = f.pid AND cpt.encounter = f.encounter
+WHERE
+		b.code_type like '%' 
+	
+)  as sub 
+	group by
+sub.id,
+sub.date,
+sub.pid,
+sub.provider_id,
+sub.encounter,
+sub.last_level_billed,
+sub.last_level_closed,
+sub.last_stmt_date,
+sub.stmt_count,
+sub.invoice_refno,
+sub.in_collection,
+sub.fname,
+sub.mname,
+sub.lname,
+sub.street,
+sub.city,
+sub.state,
+sub.postal_code,
+sub.phone_home,
+sub.ss,
+sub.billing_note,
+sub.pubpid,
+sub.DOB,
+sub.referrer,
+sub.bill_date,
+sub.charges,
+sub.copays,
+sub.sales,
+sub.payments,
+sub.adjustments,
+sub.cpt_codes
+having count(*) > 0;
+
+-- FINALLLL END Splitted the CPT, matched the output format of billing view Tested in ALAB
 
 
            
