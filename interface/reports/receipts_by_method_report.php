@@ -789,7 +789,7 @@ if (!empty($_POST['form_refresh'])) {
             thisLineItem(
                 $row['pid'],
                 $row['encounter'],
-                ($rowreference ?? ''),
+                ((isset($row['reference']) && $row['reference']) ? $row['reference'] : ''),
                 $thedate,
                 $rowmethod,
                 $row['pay_amount'],
