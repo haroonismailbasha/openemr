@@ -34,8 +34,6 @@ if (!AclMain::aclCheckCore('acct', 'bill', '', 'write') && !AclMain::aclCheckCor
     exit;
 }
 
-
-
 //===============================================================================
     $screen = 'new_payment';
 //===============================================================================
@@ -50,6 +48,7 @@ $hidden_type_code        = isset($_REQUEST['hidden_type_code']) ? $_REQUEST['hid
 //ar_session addition code
 //===============================================================================
 
+// ************** HAROON INSURANCE CHANGE 09032025 START ***************
 $pid = $hidden_patient_code;
 if(!$pid==""){
  $noInsurance = false;
@@ -85,11 +84,10 @@ if(!$pid==""){
         }
     }
 }
-   
+
+// ************** HAROON INSURANCE CHANGE 09032025 END ***************
 
 if ($mode == "new_payment" || $mode == "distribute") {
-    
-
     if (trim($_POST['type_name']) == 'insurance') {
         $QueryPart = "payer_id = '" . add_escape_custom($hidden_type_code) . "', patient_id = '0" ;
     } elseif (trim($_POST['type_name']) == 'patient') {
@@ -386,7 +384,8 @@ $payment_id = $payment_id * 1 > 0 ? $payment_id + 0 : $request_payment_id + 0;
                         ?>
                         </div>
                         <br />
-<input type="checkbox" name="no insurance" value="1"
+                                        <!-- HAROON INSURANCE CHANGE 09032025 START-->
+                                            <input type="checkbox" name="no insurance" value="1"
                                                 <?php echo $noInsurance ? 'checked' : ''; ?>>
                                             Has No Insurance
                                             </label><br>
@@ -405,6 +404,8 @@ $payment_id = $payment_id * 1 > 0 ? $payment_id + 0 : $request_payment_id + 0;
                                                     <?php echo $tertiaryInsurance ? 'checked' : ''; ?>>
                                                 Has Tertiary Insurance
                                             </label><br>
+
+                                    <!-- HAROON INSURANCE CHANGE 09032025 END-->
 
 
                         <?php

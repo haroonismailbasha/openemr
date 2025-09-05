@@ -1,3 +1,9 @@
+use inpediatrics_staging;
+
+select fe.*,b.* from form_encounter fe inner join billing b on fe.encounter=b.encounter limit 5 into outfile 'billing_encounter_data.csv';
+
+
+
 -- AR Report Issue Start
 SELECT
 	f.id,
@@ -1181,3 +1187,32 @@ ORDER BY
 SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed, f.last_level_closed, f.last_stmt_date, f.stmt_count, f.invoice_refno, f.in_collection, p.fname, p.mname, p.lname, p.street, p.city, p.state, p.postal_code, p.phone_home, p.ss, p.billing_note, p.pubpid, p.DOB, CONCAT(u.lname, ', ', u.fname) AS referrer, (SELECT bill_date FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type != 'COPAY' LIMIT 1) AS bill_date, (SELECT SUM(b.fee) FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type != 'COPAY') AS charges, (SELECT SUM(b.fee) FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type = 'COPAY') AS copays, (SELECT SUM(s.fee) FROM drug_sales AS s WHERE s.pid = f.pid AND s.encounter = f.encounter) AS sales, a.pay_amount AS payments, a.adj_amount AS adjustments, cpt.code AS cpt_codes FROM form_encounter AS f JOIN patient_data AS p ON p.pid = f.pid JOIN billing AS b ON f.pid = b.pid LEFT OUTER JOIN users AS u ON u.id = f.referring_provider_id LEFT OUTER JOIN users AS w ON w.id = f.provider_id LEFT JOIN (SELECT pid, encounter, code FROM billing WHERE code_type = 'CPT4' AND activity = 1) cpt ON cpt.pid = f.pid AND cpt.encounter = f.encounter LEFT JOIN ar_activity AS a ON a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL WHERE b.code_type like '%' AND cpt.code is not null ORDER BY f.pid, f.encounter, cpt.code;
 
 -- TEST END REMOVE 	SUM(a.pay_amount) FROM ar_activity
+
+
+use inpediatrics_staging;
+
+
+SELECT 'id','`date`',' afe.reason',' afe.facility',' f.name',' patient_name','Insurance_Name','referring_provider',' afe.encounter',' afe.onset_date',' afe.sensitivity',' afe.billing_note',' afe.pc_catid',' afe.last_level_billed',' afe.last_level_closed',' afe.last_stmt_date',' afe.stmt_count',' afe.provider_id',' afe.supervisor_id',' afe.invoice_refno',' afe.referral_source',' f.name',' afe.external_id',' afe.pos_code',' afe.parent_encounter_id',' afe.class_code',' afe.shift',' afe.voucher_number',' afe.discharge_disposition',' afe.encounter_type_code',' afe.encounter_type_description',' afe.date_end',' afe.in_collection',' afe.last_update',' afe.ordering_provider_id',' afe.crelio_order_id',' afe.hl7_file_name','ablg.id',' ablg.`date`',' ablg.code_type',' ablg.code',' ablg.pid',' ablg.provider_id',' ablg.`user`',' ablg.groupname',' ablg.authorized',' ablg.encounter',' ablg.code_text',' ablg.billed',' ablg.activity',' ablg.bill_process',' ablg.bill_date',' ablg.process_date',' ablg.process_file',' ablg.modifier',' ablg.units',' ablg.fee',' ablg.justify',' ablg.target',' ablg.x12_partner_id',' ablg.ndc_info',' ablg.notecodes',' ablg.external_id',' ablg.pricelevel',' ablg.revenue_code',' ablg.chargecat'
+union all
+SELECT afe.id,  afe.`date`, afe.reason, afe.facility, f.name, CONCAT(pd.lname, ', ', pd.fname) AS patient_name,ic.name as Insurance_Name,CONCAT(w.lname, ', ', w.fname) AS referring_provider, afe.encounter, afe.onset_date, afe.sensitivity, afe.billing_note, afe.pc_catid, afe.last_level_billed, afe.last_level_closed, afe.last_stmt_date, afe.stmt_count, afe.provider_id, afe.supervisor_id, afe.invoice_refno, afe.referral_source, f.name, afe.external_id, afe.pos_code, afe.parent_encounter_id, afe.class_code, afe.shift, afe.voucher_number, afe.discharge_disposition, afe.encounter_type_code, afe.encounter_type_description, afe.date_end, afe.in_collection, afe.last_update, afe.ordering_provider_id, afe.crelio_order_id, afe.hl7_file_name,ablg.id, ablg.`date`, ablg.code_type, ablg.code, ablg.pid, ablg.provider_id, ablg.`user`, ablg.groupname, ablg.authorized, ablg.encounter, ablg.code_text, ablg.billed, ablg.activity, ablg.bill_process, ablg.bill_date, ablg.process_date, ablg.process_file, ablg.modifier, ablg.units, ablg.fee, ablg.justify, ablg.target, ablg.x12_partner_id, ablg.ndc_info, ablg.notecodes, ablg.external_id, ablg.pricelevel, ablg.revenue_code, ablg.chargecat 
+FROM auglab.form_encounter afe 
+inner join auglab.billing ablg on afe.encounter=ablg.encounter 
+left join facility f on afe.billing_facility=f.id
+left join users w on afe.referring_provider_id=w.id
+left join insurance_companies ic on ablg.payer_id=ic.id
+left join patient_data pd on pd.id=afe.pid into outfile '/var/lib/mysql/billing_encounter_data_Updated.csv' FIELDS TERMINATED BY ','
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n';
+
+SELECT ablg.id, ablg.`date`, ablg.code_type, ablg.code, ablg.pid, ablg.provider_id, ablg.`user`, ablg.groupname, ablg.authorized, ablg.encounter, ablg.code_text, ablg.billed, ablg.activity, ablg.payer_id, ablg.bill_process, ablg.bill_date, ablg.process_date, ablg.process_file, ablg.modifier, ablg.units, ablg.fee, ablg.justify, ablg.target, ablg.x12_partner_id, ablg.ndc_info, ablg.notecodes, ablg.external_id, ablg.pricelevel, ablg.revenue_code, ablg.chargecat
+FROM auglab.billing ablg into outfile '/var/lib/mysql/alab_only_billing_data.csv' FIELDS TERMINATED BY ','
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n';;
+
+SELECT afe.id,  afe.`date`, afe.reason, afe.facility, afe.facility_id, afe.pid, afe.encounter, afe.onset_date, afe.sensitivity, afe.billing_note, afe.pc_catid, afe.last_level_billed, afe.last_level_closed, afe.last_stmt_date, afe.stmt_count, afe.provider_id, afe.supervisor_id, afe.invoice_refno, afe.referral_source, afe.billing_facility, afe.external_id, afe.pos_code, afe.parent_encounter_id, afe.class_code, afe.shift, afe.voucher_number, afe.discharge_disposition, afe.encounter_type_code, afe.encounter_type_description, afe.referring_provider_id, afe.date_end, afe.in_collection, afe.last_update, afe.ordering_provider_id, afe.crelio_order_id, afe.hl7_file_name
+FROM auglab.form_encounter afe  into outfile '/var/lib/mysql/alab_only_encounter_data.csv' FIELDS TERMINATED BY ','
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n';;
+
+ SHOW VARIABLES LIKE "secure_file_priv";
+  SHOW VARIABLES LIKE 'datadir';
