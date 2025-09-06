@@ -61,13 +61,7 @@ if(!$pid==""){
                               where pd.pid=" .
         $pid;
     $resultSet = sqlStatement($insuranceCheckerQuery);
-    if ($resultSet==null) {
-        $noInsurance = true;
-    } 
-    // else if($resultSet->numRows==0) {
-    //     $noInsurance = true;
-    // }
-     else{
+    if ($resultSet && sqlNumRows($resultSet) > 0) {
         while ($row = sqlFetchArray($resultSet)) {
             // echo "Complete row data:<br>";
             // print_r($row)['type']; // See all columns
@@ -82,8 +76,14 @@ if(!$pid==""){
                 $noInsurance = true;
             }
         }
+    } 
+     else{
+        $noInsurance = true;
+        
     }
 }
+
+
 
 // ************** HAROON INSURANCE CHANGE 09032025 END ***************
 
@@ -384,28 +384,7 @@ $payment_id = $payment_id * 1 > 0 ? $payment_id + 0 : $request_payment_id + 0;
                         ?>
                         </div>
                         <br />
-                                        <!-- HAROON INSURANCE CHANGE 09032025 START-->
-                                            <input type="checkbox" name="no insurance" value="1"
-                                                <?php echo $noInsurance ? 'checked' : ''; ?>>
-                                            Has No Insurance
-                                            </label><br>
-                                            <label>
-                                                <input type="checkbox" name="primary_insurance" value="1"
-                                                    <?php echo $primaryInsurance ? 'checked' : ''; ?>>
-                                                Has Primary Insurance
-                                            </label><br>
-                                            <label>
-                                                <input type="checkbox" name="secondary_insurance" value="1"
-                                                    <?php echo $secondaryInsurance ? 'checked' : ''; ?>>
-                                                Has Secondary Insurance
-                                            </label><br>
-                                            <label>
-                                                <input type="checkbox" name="tertiary_insurance" value="1"
-                                                    <?php echo $tertiaryInsurance ? 'checked' : ''; ?>>
-                                                Has Tertiary Insurance
-                                            </label><br>
-
-                                    <!-- HAROON INSURANCE CHANGE 09032025 END-->
+                                       
 
 
                         <?php

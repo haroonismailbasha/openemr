@@ -1216,3 +1216,109 @@ LINES TERMINATED BY '\n';;
 
  SHOW VARIABLES LIKE "secure_file_priv";
   SHOW VARIABLES LIKE 'datadir';
+
+
+  -- Adding Label if second Insurance Exist Start
+
+select id.type from patient_data pd 
+inner JOIN insurance_data id on pd.pid=id.pid
+inner join insurance_companies ic on id.provider =ic.id where pd.pid= '4'
+-- AND contains(id.type,"secondary")
+ and INSTR(id.type,'secondary');
+
+ select id.type from patient_data pd 
+inner JOIN insurance_data id on pd.pid=id.pid
+inner join insurance_companies ic on id.provider =ic.id where pd.pid= 6
+-- AND contains(id.type,"secondary")
+ and INSTR(id.type,'tertiary')
+
+ select pd.pid,concat(pd.fname,' ',pd.lname) as patient,id.type from patient_data pd 
+inner JOIN insurance_data id on pd.pid=id.pid
+inner join insurance_companies ic on id.provider =ic.id order by pd.pid;
+
+where pd.pid= 6
+-- AND contains(id.type,"secondary")
+ and (INSTR(id.type,'secondary') OR INSTR(id.type,'') OR INSTR(id.type,'tertiary')  ) ;
+
+select id.type,concat(pd.fname,' ',pd.lname) as patient_name from patient_data pd 
+inner JOIN insurance_data id on pd.pid=id.pid
+inner join insurance_companies ic on id.provider =ic.id where pd.pid= '6'
+-- AND contains(id.type,"secondary")
+
+
+select id.type from patient_data pd 
+                              inner JOIN insurance_data id on pd.pid=id.pid
+                              inner join insurance_companies ic on id.provider =ic.id 
+                              where pd.pid=10;
+ 
+ 
+
+
+select * from patient_data pd where pd.pid=1; -- no insurance
+
+select * from patient_data pd where pd.pid=12; -- only primary insurance
+
+
+select * from patient_data pd where pd.pid=6; -- primary and Secondary insurance
+
+select * from patient_data pd where pd.pid=10; -- tertiary Insurance
+
+
+select * from insurance_companies ic; 
+
+select * from insurance_data id ;
+
+select * from patient_data pd ;
+
+select concat(pd.fname,' ',pd.lname) as patient_name,id.type from patient_data pd 
+inner JOIN insurance_data id on pd.pid=id.pid
+inner join insurance_companies ic on id.provider =ic.id 
+group by patient_name,id.type
+
+select concat(pd.fname,' ',pd.lname) as patient_name,id.type from patient_data pd 
+inner JOIN insurance_data id on pd.pid=id.pid
+inner join insurance_companies ic on id.provider =ic.id 
+CASE 
+	WHEN id.type='secondary' then 'customer has secondary insurance'
+	
+END
+
+select count(*) from (select id.type from patient_data pd 
+inner JOIN insurance_data id on pd.pid=id.pid
+inner join insurance_companies ic on id.provider =ic.id where pd.pid= 6
+-- AND contains(id.type,"secondary")
+ and INSTR(id.type,'secondary')) as sub,
+CASE 
+	WHEN id.type='secondary' then 'customer has secondary insurance'
+	
+END;
+
+select id.type from patient_data pd 
+                              inner JOIN insurance_data id on pd.pid=id.pid
+                              inner join insurance_companies ic on id.provider =ic.id 
+                              where pd.pid=2;
+                             
+                             select id.type from patient_data pd 
+                              inner JOIN insurance_data id on pd.pid=id.pid
+                              inner join insurance_companies ic on id.provider =ic.id 
+                              where pd.pid=10;
+
+
+
+
+
+
+;
+
+
+-- Adding Label if second Insurance Exist End
+
+
+
+
+SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed,IF(b.billed = 0, 'Unbilled', 'Billed') AS billing_status,  f.last_level_closed, f.last_stmt_date, f.stmt_count, f.invoice_refno, f.in_collection, p.fname, p.mname, p.lname, p.street, p.city, p.state, p.postal_code, p.phone_home, p.ss, p.billing_note, p.pubpid, p.DOB, CONCAT(u.lname, ', ', u.fname) AS referrer, (SELECT bill_date FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type != 'COPAY' LIMIT 1) AS bill_date, (SELECT SUM(b.fee) FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type != 'COPAY') AS charges, (SELECT SUM(b.fee) FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type = 'COPAY') AS copays, (SELECT SUM(s.fee) FROM drug_sales AS s WHERE s.pid = f.pid AND s.encounter = f.encounter) AS sales, a.pay_amount AS payments, a.adj_amount AS adjustments, cpt.code AS cpt_codes FROM form_encounter AS f JOIN patient_data AS p ON p.pid = f.pid JOIN billing AS b ON f.pid = b.pid LEFT OUTER JOIN users AS u ON u.id = f.referring_provider_id LEFT OUTER JOIN users AS w ON w.id = f.provider_id LEFT JOIN (SELECT pid, encounter, code FROM billing WHERE code_type = 'CPT4' AND activity = 1) cpt ON cpt.pid = f.pid AND cpt.encounter = f.encounter LEFT JOIN ar_activity AS a ON a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL AND  /** haroon start **/ b.code_type like '%' /** haroon end **/  AND f.date >= '2025-08-03' AND f.date <= '2025-09-03' ;
+
+
+
+
+

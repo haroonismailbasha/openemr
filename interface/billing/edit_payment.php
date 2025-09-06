@@ -1,5 +1,5 @@
 <?php
-
+ini_set('display_errors', 1);
 /*
  * Payments can be edited here whch includes deletion of an allocation, modifying the
  * same or adding a new allocation. Log is kept for the deleted ones.
@@ -42,45 +42,37 @@ $screen = 'edit_payment';
 // echo "<pre>";
 // print_r($_POST); die;
 if (isset($_POST["mode"])) {
-    
-    // ************** HAROON INSURANCE CHANGE 09032025 START ***************
-    $pid = $_POST['hidden_patient_code'];
-    $noInsurance = false;
-    $primaryInsurance = false;
-    $secondaryInsurance = false;
-    $tertiaryInsurance = false;
-    $insuranceCheckerQuery = "select id.type from patient_data pd 
-                              inner JOIN insurance_data id on pd.pid=id.pid
-                              inner join insurance_companies ic on id.provider =ic.id 
-                              where pd.pid=" .
-        $pid;
-    $resultSet = sqlStatement($insuranceCheckerQuery);
-    if ($resultSet==null) {
-        $noInsurance = true;
-    } 
-    // else if($resultSet->numRows==0) {
-    //     $noInsurance = true;
-    // }
-     else{
-        while ($row = sqlFetchArray($resultSet)) {
-            // echo "Complete row data:<br>";
-            // print_r($row)['type']; // See all columns
-            // echo "<hr>";
-            if ($row['type']  == "primary") {
-                $primaryInsurance = true;
-            } else if ($row['type'] == "secondary") {
-                $secondaryInsurance = true;
-            } else if ($row['type'] == "tertiary") {
-                $tertiaryInsurance = true;
-            } else {
-                $noInsurance = true;
-            }
-        }
-    }
 
+	// ************** HAROON INSURANCE CHANGE 09032025 START ***************
+	    $pid = $_POST['hidden_patient_code'];
+	    $noInsurance = false;
+	    $primaryInsurance = false;
+	    $secondaryInsurance = false;
+	    $tertiaryInsurance = false;
+	    $insuranceCheckerQuery = "select id.type from patient_data pd 
+	                              inner JOIN insurance_data id on pd.pid=id.pid
+	                              inner join insurance_companies ic on id.provider =ic.id 
+	                              where pd.pid=" .
+	        $pid;
+	    $resultSet = sqlStatement($insuranceCheckerQuery);
+	    if ($resultSet==null) {
+	        $noInsurance = true;
+	    } 
+	     else{
+	        while ($row = sqlFetchArray($resultSet)) {
+	            if ($row['type']  == "primary") {
+	                $primaryInsurance = true;
+	            } else if ($row['type'] == "secondary") {
+	                $secondaryInsurance = true;
+	            } else if ($row['type'] == "tertiary") {
+	                $tertiaryInsurance = true;
+	            } else {
+	                $noInsurance = true;
+	            }
+	        }
+	    }
 
-    // ************** HAROON INSURANCE CHANGE 09032025 END ***************
-
+        // ************** HAROON INSURANCE CHANGE 09032025 END ***************
     if ($_POST["mode"] == "DeletePaymentDistribution") {
         $DeletePaymentDistributionId = (isset($_POST['DeletePaymentDistributionId']) ? trim($_POST['DeletePaymentDistributionId']) : '');
         $DeletePaymentDistributionIdArray = explode('_', $DeletePaymentDistributionId);
@@ -106,8 +98,6 @@ if (isset($_POST["mode"])) {
         //------------------
         $_POST["mode"] = "searchdatabase";
     }
-
-
 }
 
 //===============================================================================
@@ -197,6 +187,15 @@ if (isset($_POST["mode"])) {
                     "' AND code = '" . trim(formData("HiddenCode$CountRow")) .
                     "' AND modifier = '" . trim(formData("HiddenModifier$CountRow")) .
                     "'";
+
+                if($hasFive){
+                    sqlStatement(
+                        "UPDATE form_encounter SET last_level_billed = 0, " .
+                        "last_level_closed = 0, stmt_count = 0, last_stmt_date = NULL " .
+                        "WHERE pid = ? AND encounter = ?",
+                        array(trim(formData("HiddenPId$CountRow")), trim(formData("HiddenEncounter$CountRow")))
+                    );
+                }
 
 
                 $where = "$where1 AND pay_amount > 0";
@@ -372,7 +371,7 @@ if (isset($_POST["mode"])) {
                         "', modified_time = '" . trim(add_escape_custom($created_time)) .
                         "', pay_amount = '" . 0 .
                         "', adj_amount = '" . 0 .
-                        "', memo = '" . "Total $" . trim(formData("Co-ins$CountRow")+formData("Deductible$CountRow")) .
+                        "', memo = '" . "Total $" . trim((float) formData("Co-ins$CountRow")+(float) formData("Deductible$CountRow")) .
                         "', account_code = '" . "Deduct" .
                         "'");
                     sqlCommitTrans();
@@ -388,6 +387,7 @@ if (isset($_POST["mode"])) {
                     if (sqlNumRows($resPayment) > 0) {
                         sqlStatement("update ar_activity set deleted = NOW() $where");
                     }
+                    echo "<script> console.log('Im here 6');</script>";
                     sqlBeginTrans();
                     $sequence_no = sqlQuery("SELECT IFNULL(MAX(sequence_no),0) + 1 AS increment FROM ar_activity WHERE pid = '" . trim(formData("HiddenPId$CountRow")) . "' AND encounter = '" . trim(formData("HiddenEncounter$CountRow")) . "'");
                     sqlStatement("insert into ar_activity set " .
@@ -453,8 +453,30 @@ if (isset($_POST["mode"])) {
         //=========
         //INSERTION of new entries,continuation of modification.
         //=========
+        $hiddenInsKeysNew = preg_grep('/^HiddenIns\d+$/', array_keys($_POST));
+        $hasFiveNew = false;
+        foreach ($hiddenInsKeysNew as $k) {
+            if ((string)$_POST[$k] === '5') {
+                $hasFive = true;
+                break;
+            }
+        }
+
+        if ($hasFiveNew) {
+            foreach ($hiddenInsKeysNew as $k) {
+                $_POST[$k] = '1';
+            }
+        }
         for ($CountRow = $CountIndexAbove + 1; $CountRow <= $CountIndexAbove + $CountIndexBelow; $CountRow++) {
             if (isset($_POST["HiddenEncounter$CountRow"])) {
+                if($hasFiveNew){
+                    sqlStatement(
+                        "UPDATE form_encounter SET last_level_billed = 0, " .
+                        "last_level_closed = 0, stmt_count = 0, last_stmt_date = NULL " .
+                        "WHERE pid = ? AND encounter = ?",
+                        array(trim(formData("HiddenPId$CountRow")), trim(formData("HiddenEncounter$CountRow")))
+                    );
+                }
                 DistributionInsert($CountRow, $created_time, $user_id);
             } else {
                 break;
@@ -844,7 +866,7 @@ $ResultSearchSub = sqlStatement(
                                 <tr>
                                     <th>&nbsp;</th>
                                     <th><?php echo xlt('Patient Name'); ?></th>
-                                    <th><?php echo xlt('Post For'); ?></th>
+                                    <th style="width: 100px;"><?php echo xlt('Post For'); ?></th>
                                     <th><?php echo xlt('Service Date'); ?></th>
                                     <th><?php echo xlt('Enc#'); ?></th>
                                     <th><?php echo xlt('Code'); ?></th>
@@ -1567,26 +1589,7 @@ $ResultSearchSub = sqlStatement(
                                         onclick="updateAllFormTotals(<?php echo attr_js($TotalRows); ?>);"><?php echo xlt("Recalculate"); ?></button>
                             </td>
                         </tr>
-                        </table>
-                        <input type="checkbox" name="no insurance" value="1"
-                                                <?php echo $noInsurance ? 'checked' : ''; ?>>
-                                            Has No Insurance
-                                            </label><br>
-                                            <label>
-                                                <input type="checkbox" name="primary_insurance" value="1"
-                                                    <?php echo $primaryInsurance ? 'checked' : ''; ?>>
-                                                Has Primary Insurance
-                                            </label><br>
-                                            <label>
-                                                <input type="checkbox" name="secondary_insurance" value="1"
-                                                    <?php echo $secondaryInsurance ? 'checked' : ''; ?>>
-                                                Has Secondary Insurance
-                                            </label><br>
-                                            <label>
-                                                <input type="checkbox" name="tertiary_insurance" value="1"
-                                                    <?php echo $tertiaryInsurance ? 'checked' : ''; ?>>
-                                                Has Tertiary Insurance
-                                            </label><br>
+                        </table>	    
                         <?php
                     }
                     ?>

@@ -56,6 +56,30 @@ if (isset($_POST["mode"])) {
 ?>
                     <fieldset>
                     <legend><?php echo xlt('Distribute')?></legend>
+                    <!-- HAROON INSURANCE CHANGE 09032025 START-->
+                                            <label style="color: red;">THESE NON-EDITABLE INSURANCE CHECKBOXES AUTOMATICALLY GETS SELECTED ACCORDING TO PATIENT SELECTED USING BELOW SEARCH</label><br>
+
+                                            <input type="checkbox" name="no insurance" onclick="return false" value="1"
+                                                <?php echo $noInsurance ? 'checked' : ''; ?>>
+                                            Has No Insurance
+                                            </label><br>
+                                            <label>
+                                                <input type="checkbox" name="primary_insurance" onclick="return false" value="1"
+                                                    <?php echo $primaryInsurance ? 'checked' : ''; ?>>
+                                                Has Primary Insurance
+                                            </label><br>
+                                            <label>
+                                                <input type="checkbox" name="secondary_insurance" onclick="return false" value="1"
+                                                    <?php echo $secondaryInsurance ? 'checked' : ''; ?>>
+                                                Has Secondary Insurance
+                                            </label><br>
+                                            <label>
+                                                <input type="checkbox" name="tertiary_insurance" onclick="return false" value="1"
+                                                    <?php echo $tertiaryInsurance ? 'checked' : ''; ?>>
+                                                Has Tertiary Insurance
+                                            </label><br>
+
+                    <!-- HAROON INSURANCE CHANGE 09032025 END-->
                     <div class="row pb-2" id="TablePatientPortion">
                         <div class="frames col-3">
                             <input id="hidden_ajax_patient_close_value" type="hidden" value="<?php echo (empty($Message)) ? attr($NameNew ?? '') : '' ;?>" />
