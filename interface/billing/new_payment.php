@@ -5,8 +5,8 @@
  *
  * The functions of this class support the billing process like the script billing_process.php.
  *
- * @package   iRCMAX
- * @link   http://ircmax.net
+ * @package   OpenEMR
+ * @link      http://www.open-emr.org
  * @author    Eldho Chacko <eldho@zhservices.com>
  * @author    Paul Simon K <paul@zhservices.com>
  * @author    Stephen Waite <stephen.waite@cmsvt.com>
@@ -14,7 +14,7 @@
  * @copyright Copyright (c) Z&H Consultancy Services Private Limited <sam@zhservices.com>
  * @copyright Copyright (C) 2018 Stephen Waite <stephen.waite@cmsvt.com>
  * @copyright Copyright (c) 2019 Brady Miller <brady.g.miller@gmail.com>
-
+ * @license   https://github.com/openemr/openemr/blob/master/LICENSE GNU General Public License 3
  */
 
 require_once("../globals.php");
@@ -35,12 +35,12 @@ if (!AclMain::aclCheckCore('acct', 'bill', '', 'write') && !AclMain::aclCheckCor
 }
 
 //===============================================================================
-    $screen = 'new_payment';
+$screen = 'new_payment';
 //===============================================================================
 // Initialisations
 $mode                    = isset($_POST['mode'])                   ? $_POST['mode']                   : '';
 $payment_id              = isset($_REQUEST['payment_id'])          ? $_REQUEST['payment_id'] + 0      : 0;
-$request_payment_id      = $payment_id ;
+$request_payment_id      = $payment_id;
 $hidden_patient_code     = isset($_REQUEST['hidden_patient_code']) ? $_REQUEST['hidden_patient_code'] : '';
 $default_search_patient  = isset($_POST['default_search_patient']) ? $_POST['default_search_patient'] : '';
 $hidden_type_code        = isset($_REQUEST['hidden_type_code']) ? $_REQUEST['hidden_type_code'] : '';
@@ -78,32 +78,27 @@ if(!$pid==""){
     }
     else{
         $noInsurance = true;
-
     }
-}
-
-
-
-// ************** HAROON INSURANCE CHANGE 09032025 END ***************
+    // ************** HAROON INSURANCE CHANGE 09032025 END ***************
 if ($mode == "new_payment" || $mode == "distribute") {
     if (trim($_POST['type_name']) == 'insurance') {
-        $QueryPart = "payer_id = '" . add_escape_custom($hidden_type_code) . "', patient_id = '0" ;
+        $QueryPart = "payer_id = '" . add_escape_custom($hidden_type_code) . "', patient_id = '0";
     } elseif (trim($_POST['type_name']) == 'patient') {
         $QueryPart = "payer_id = '0', patient_id = '" . add_escape_custom($hidden_type_code);
     }
-      $user_id = $_SESSION['authUserID'];
-      $closed = 0;
-      $modified_time = date('Y-m-d H:i:s');
-      $check_date = DateToYYYYMMDD(formData('check_date'));
-      $deposit_date = DateToYYYYMMDD(formData('deposit_date'));
-      $post_to_date = DateToYYYYMMDD(formData('post_to_date'));
+    $user_id = $_SESSION['authUserID'];
+    $closed = 0;
+    $modified_time = date('Y-m-d H:i:s');
+    $check_date = DateToYYYYMMDD(formData('check_date'));
+    $deposit_date = DateToYYYYMMDD(formData('deposit_date'));
+    $post_to_date = DateToYYYYMMDD(formData('post_to_date'));
     if ($post_to_date == '') {
         $post_to_date = date('Y-m-d');
     }
     if ($_POST['deposit_date'] == '') {
         $deposit_date = $post_to_date;
     }
-      $payment_id = sqlInsert("insert into ar_session set "    .
+    $payment_id = sqlInsert("insert into ar_session set "    .
         $QueryPart .
         "', user_id = '"     . trim(add_escape_custom($user_id))  .
         "', closed = '"      . trim(add_escape_custom($closed))  .
@@ -126,8 +121,30 @@ if ($mode == "new_payment" || $mode == "distribute") {
 if ($mode == "PostPayments" || $mode == "FinishPayments") {
     $user_id = $_SESSION['authUserID'];
     $created_time = date('Y-m-d H:i:s');
+    $hiddenInsKeysNew = preg_grep('/^HiddenIns\d+$/', array_keys($_POST));
+    $hasFiveNew = false;
+    foreach ($hiddenInsKeysNew as $k) {
+        if ((string)$_POST[$k] === '5') {
+            $hasFive = true;
+            break;
+        }
+    }
+
+    if ($hasFiveNew) {
+        foreach ($hiddenInsKeysNew as $k) {
+            $_POST[$k] = '1';
+        }
+    }
     for ($CountRow = 1;; $CountRow++) {
         if (isset($_POST["HiddenEncounter$CountRow"])) {
+            if($hasFiveNew){
+                sqlStatement(
+                    "UPDATE form_encounter SET last_level_billed = 0, " .
+                    "last_level_closed = 0, stmt_count = 0, last_stmt_date = NULL " .
+                    "WHERE pid = ? AND encounter = ?",
+                    array(trim(formData("HiddenPId$CountRow")), trim(formData("HiddenEncounter$CountRow")))
+                );
+            }
             DistributionInsert($CountRow, $created_time, $user_id);
         } else {
             break;
@@ -155,8 +172,9 @@ $payment_id = $payment_id * 1 > 0 ? $payment_id + 0 : $request_payment_id + 0;
 ?>
 <!DOCTYPE html>
 <html>
+
 <head>
-    <?php Header::setupHeader(['common', 'datetime-picker']);?>
+    <?php Header::setupHeader(['common', 'datetime-picker']); ?>
 
 
     <script>
@@ -168,8 +186,8 @@ $payment_id = $payment_id * 1 > 0 ? $payment_id + 0 : $request_payment_id + 0;
         function CancelDistribute() {
             // Used in the cancel button.Helpful while cancelling the distribution.
             if (confirm(<?php echo xlj('Would you like to Cancel Distribution for this Patient?') ?>)) {
-                document.getElementById('hidden_patient_code').value='';
-                document.getElementById('mode').value='search';
+                document.getElementById('hidden_patient_code').value = '';
+                document.getElementById('mode').value = 'search';
                 top.restoreSession();
                 document.forms[0].submit();
             } else {
@@ -195,7 +213,7 @@ $payment_id = $payment_id * 1 > 0 ? $payment_id + 0 : $request_payment_id + 0;
                 return false;
             }
             if (confirm(<?php echo xlj('Would you like to Post Payments?'); ?>)) {
-                document.getElementById('mode').value='PostPayments';
+                document.getElementById('mode').value = 'PostPayments';
                 top.restoreSession();
                 document.forms[0].submit();
             } else {
@@ -212,7 +230,7 @@ $payment_id = $payment_id * 1 > 0 ? $payment_id + 0 : $request_payment_id + 0;
                 return false;
             }
             // Ensures that Insurance payment is distributed under Ins1,Ins2,Ins3 and Patient paymentat under Pat.
-            if (!CheckPayingEntityAndDistributionPostFor()){
+            if (!CheckPayingEntityAndDistributionPostFor()) {
                 return false;
             }
             PostValue = CheckUnappliedAmount();
@@ -224,23 +242,23 @@ $payment_id = $payment_id * 1 > 0 ? $payment_id + 0 : $request_payment_id + 0;
 
             if (PostValue == 2) {
                 if (confirm(<?php echo xlj('Would you like to Post and Finish Payments?'); ?>)) {
-                UnappliedAmount = document.getElementById('TdUnappliedAmount').innerHTML*1;
-                if(confirm(<?php echo xlj('Undistributed is'); ?> + ' ' + UnappliedAmount +  '.' + '\n' + <?php echo xlj('Would you like the balance amount to apply to Global Account?'); ?>)) {
-                    document.getElementById('mode').value='FinishPayments';
-                    document.getElementById('global_amount').value='yes';
-                    top.restoreSession();
-                    document.forms[0].submit();
+                    UnappliedAmount = document.getElementById('TdUnappliedAmount').innerHTML * 1;
+                    if (confirm(<?php echo xlj('Undistributed is'); ?> + ' ' + UnappliedAmount + '.' + '\n' + <?php echo xlj('Would you like the balance amount to apply to Global Account?'); ?>)) {
+                        document.getElementById('mode').value = 'FinishPayments';
+                        document.getElementById('global_amount').value = 'yes';
+                        top.restoreSession();
+                        document.forms[0].submit();
+                    } else {
+                        document.getElementById('mode').value = 'FinishPayments';
+                        top.restoreSession();
+                        document.forms[0].submit();
+                    }
                 } else {
-                    document.getElementById('mode').value='FinishPayments';
-                    top.restoreSession();
-                    document.forms[0].submit();
+                    return false;
                 }
-                } else {
-                return false;
-               }
             } else {
                 if (confirm(<?php echo xlj('Would you like to Post and Finish Payments?'); ?>)) {
-                    document.getElementById('mode').value='FinishPayments';
+                    document.getElementById('mode').value = 'FinishPayments';
                     top.restoreSession();
                     document.forms[0].submit();
                 } else {
@@ -251,32 +269,21 @@ $payment_id = $payment_id * 1 > 0 ? $payment_id + 0 : $request_payment_id + 0;
 
         function CompletlyBlank() {
             // Checks whether any of the allocation row is filled.
-            for (RowCount = 1;;RowCount++) {
-                if((!document.getElementById('Payment'+RowCount))) {
+            for (RowCount = 1;; RowCount++) {
+                if (!document.getElementById('Payment' + RowCount)) {
                     break;
-                }
-                else {
+                } else {
+                    if (document.getElementById('Allowed' + RowCount).value == '' &&
+                        document.getElementById('Payment' + RowCount).value == '' &&
+                        document.getElementById('AdjAmount' + RowCount).value == '' &&
+                        document.getElementById('Deductible' + RowCount).value == '' &&
+                        document.getElementById('Takeback' + RowCount).value == '' &&
+                        document.getElementById('FollowUp' + RowCount).checked == false) {
 
-                    if((document.getElementById('Allowed'+RowCount).value==''
-                        && document.getElementById('Payment'+RowCount).value==''
-                        && document.getElementById('AdjAmount'+RowCount).value==''
-                        && document.getElementById('Deductible'+RowCount).value==''
-                        && document.getElementById('Takeback'+RowCount).value==''
-                        && document.getElementById('FollowUp'+RowCount).checked==false)) {
-                        if((document.getElementById('payment_ins'+RowCount).value === '5')){
-                            // alert('inside if '+(document.getElementById('payment_ins'+RowCount).value));
-                            return false;
-                        }
-                        else{
-                            // alert('inside else '+(document.getElementById('payment_ins'+RowCount).value));
-                            return true;
-                        }
-                    }
-                    else{
+                    } else {
                         return false;
                     }
                 }
-
             }
             return true;
         }
@@ -287,7 +294,7 @@ $payment_id = $payment_id * 1 > 0 ? $payment_id + 0 : $request_payment_id + 0;
             payment_id = document.getElementById('payment_id').value;
             if (after_value === 'distribute') {
 
-            } else if (after_value=='new_payment') {
+            } else if (after_value == 'new_payment') {
                 if (document.getElementById('TablePatientPortion')) {
                     document.getElementById('TablePatientPortion').style.display = 'none';
                 }
@@ -309,18 +316,19 @@ $payment_id = $payment_id * 1 > 0 ? $payment_id + 0 : $request_payment_id + 0;
             PayingEntityAction(); // Paying Entity is made 'insurance' and Payment Category is 'Insurance Payment'
         }
 
-        function FillUnappliedAmount(){
+        function FillUnappliedAmount() {
             // Filling the amount
             document.getElementById('TdUnappliedAmount').innerHTML = document.getElementById('payment_amount').value;
         }
 
-        $(function () {
+        $(function() {
             $('.datepicker').datetimepicker({
-                    <?php $datetimepicker_timepicker = false; ?>
-                    <?php $datetimepicker_showseconds = false; ?>
-                    <?php $datetimepicker_formatInput = true; ?>
-                    <?php require($GLOBALS['srcdir'] . '/js/xl/jquery-datetimepicker-2-5-4.js.php'); ?>
-                    <?php // can add any additional javascript settings to datetimepicker here; need to prepend first setting with a comma ?>
+                <?php $datetimepicker_timepicker = false; ?>
+                <?php $datetimepicker_showseconds = false; ?>
+                <?php $datetimepicker_formatInput = true; ?>
+                <?php require($GLOBALS['srcdir'] . '/js/xl/jquery-datetimepicker-2-5-4.js.php'); ?>
+                <?php // can add any additional javascript settings to datetimepicker here; need to prepend first setting with a comma 
+                ?>
             });
 
             document.getElementById('payment_amount').addEventListener('focus', (event) => {
@@ -334,6 +342,7 @@ $payment_id = $payment_id * 1 > 0 ? $payment_id + 0 : $request_payment_id + 0;
         .class1 {
             width: 125px;
         }
+
         .amt_input {
             max-width: 75px;
         }
@@ -342,18 +351,19 @@ $payment_id = $payment_id * 1 > 0 ? $payment_id + 0 : $request_payment_id + 0;
     <?php
     $arrOeUiSettings = array(
         'heading_title' => xl('Payments'),
-        'include_patient_name' => false,// use only in appropriate pages
+        'include_patient_name' => false, // use only in appropriate pages
         'expandable' => true,
-        'expandable_files' => array("new_payment_xpd", "search_payments_xpd", "era_payments_xpd"),//all file names need suffix _xpd
-        'action' => "",//conceal, reveal, search, reset, link or back
+        'expandable_files' => array("new_payment_xpd", "search_payments_xpd", "era_payments_xpd"), //all file names need suffix _xpd
+        'action' => "", //conceal, reveal, search, reset, link or back
         'action_title' => "",
-        'action_href' => "",//only for actions - reset, link or back
+        'action_href' => "", //only for actions - reset, link or back
         'show_help_icon' => false,
         'help_file_name' => ""
     );
     $oemr_ui = new OemrUI($arrOeUiSettings);
     ?>
 </head>
+
 <body onload="OnloadAction()">
     <div id="container_div" class="<?php echo attr($oemr_ui->oeContainer()); ?> mt-3">
         <div class="row">
@@ -377,76 +387,78 @@ $payment_id = $payment_id * 1 > 0 ? $payment_id + 0 : $request_payment_id + 0;
                 </ul>
             </div>
         </nav>
-            <div class="col-sm-12">
-                <form action="new_payment.php" id="new_payment" method='post' name='new_payment' onsubmit="
+        <div class="col-sm-12">
+            <form action="new_payment.php" id="new_payment" method='post' name='new_payment' onsubmit="
                 <?php
                 if ($payment_id * 1 == 0) {
                     echo 'top.restoreSession();';
                 } else {
                     echo 'return false;';
-                }?>" style="display:inline">
+                } ?>" style="display:inline">
 
-                    <fieldset>
-                        <div class="jumbotron py-4">
+                <fieldset>
+                    <div class="jumbotron py-4">
                         <?php
-                            require_once("payment_master.inc.php"); //Check/cash details are entered here.
+                        require_once("payment_master.inc.php"); //Check/cash details are entered here.
                         ?>
-                        </div>
-                        <br />
+                    </div>
+                    <br />
+                    <?php
+                    if ($payment_id * 1 > 0) {
+                    ?>
                         <?php
-                        if ($payment_id * 1 > 0) {
+                        if ($PaymentType == 'patient' && $default_search_patient != "default_search_patient") {
+                            $default_search_patient = "default_search_patient";
+                            $_POST['default_search_patient'] = $default_search_patient;
+                            $hidden_patient_code = $TypeCode;
+                            $_REQUEST['hidden_patient_code'] = $hidden_patient_code;
+                            $_REQUEST['RadioPaid'] = 'Show_Paid';
+                        }
+                        require_once("payment_pat_sel.inc.php"); //Patient ajax section and listing of charges.
+                        ?>
+                        <?php
+                        if ($CountIndexBelow > 0) {
+                        ?>
+                            <?php //can change position of buttons by creating a class 'position-override' and adding rule text-align:center or right as the case may be in individual stylesheets 
                             ?>
-                            <?php
-                            if ($PaymentType == 'patient' && $default_search_patient != "default_search_patient") {
-                                $default_search_patient = "default_search_patient";
-                                $_POST['default_search_patient'] = $default_search_patient;
-                                $hidden_patient_code = $TypeCode;
-                                $_REQUEST['hidden_patient_code'] = $hidden_patient_code;
-                                $_REQUEST['RadioPaid'] = 'Show_Paid';
-                            }
-                                require_once("payment_pat_sel.inc.php"); //Patient ajax section and listing of charges.
-                            ?>
-                            <?php
-                            if ($CountIndexBelow > 0) {
-                                ?>
-                                <?php //can change position of buttons by creating a class 'position-override' and adding rule text-align:center or right as the case may be in individual stylesheets ?>
                             <br />
                             <div class="form-group clearfix">
                                 <div class="col-sm-12 text-left position-override">
                                     <br />
                                     <div class="btn-group" role="group">
-                                        <button class="btn btn-primary btn-save" href="#" onclick="return PostPayments();"><?php echo xlt('Post Payments');?></button>
-                                        <button class="btn btn-primary btn-save" href="#" onclick="return FinishPayments();"><?php echo xlt('Finish Payments');?></button>
-                                        <button class="btn btn-secondary btn-cancel" href="#" onclick="CancelDistribute()"><?php echo xlt('Cancel');?></button>
+                                        <button class="btn btn-primary btn-save" href="#" onclick="return PostPayments();"><?php echo xlt('Post Payments'); ?></button>
+                                        <button class="btn btn-primary btn-save" href="#" onclick="return FinishPayments();"><?php echo xlt('Finish Payments'); ?></button>
+                                        <button class="btn btn-secondary btn-cancel" href="#" onclick="CancelDistribute()"><?php echo xlt('Cancel'); ?></button>
                                     </div>
                                 </div>
                             </div>
-                                <?php
-                            }//if($CountIndexBelow>0)
-                            ?>
-                            <?php
-                        }
+                        <?php
+                        } //if($CountIndexBelow>0)
                         ?>
-                    </fieldset>
-                    <input id="hidden_patient_code" name="hidden_patient_code" type="hidden" value="<?php echo attr($hidden_patient_code);?>" />
-                    <input id='mode' name='mode' type='hidden' value='' />
-                    <input id='default_search_patient' name='default_search_patient' type='hidden' value='<?php echo attr($default_search_patient); ?>' />
-                    <input id='ajax_mode' name='ajax_mode' type='hidden' value='' />
-                    <input id="after_value" name="after_value" type="hidden" value="<?php echo attr($mode);?>" />
-                    <input id="payment_id" name="payment_id" type="hidden" value="<?php echo attr($payment_id);?>" />
-                    <input id="hidden_type_code" name="hidden_type_code" type="hidden" value="<?php echo attr($hidden_type_code);?>" />
-                    <input id='global_amount' name='global_amount' type='hidden' value='' />
-                </form>
-            </div>
+                    <?php
+                    }
+                    ?>
+                </fieldset>
+                <input id="hidden_patient_code" name="hidden_patient_code" type="hidden" value="<?php echo attr($hidden_patient_code); ?>" />
+                <input id='mode' name='mode' type='hidden' value='' />
+                <input id='default_search_patient' name='default_search_patient' type='hidden' value='<?php echo attr($default_search_patient); ?>' />
+                <input id='ajax_mode' name='ajax_mode' type='hidden' value='' />
+                <input id="after_value" name="after_value" type="hidden" value="<?php echo attr($mode); ?>" />
+                <input id="payment_id" name="payment_id" type="hidden" value="<?php echo attr($payment_id); ?>" />
+                <input id="hidden_type_code" name="hidden_type_code" type="hidden" value="<?php echo attr($hidden_type_code); ?>" />
+                <input id='global_amount' name='global_amount' type='hidden' value='' />
+            </form>
+        </div>
         <!-- end of row div -->
         <div class="clearfix">.</div>
     </div><!-- end of container div -->
-    <?php $oemr_ui->oeBelowContainerDiv();?>
-<script src = '<?php echo $webroot;?>/library/js/oeUI/oeFileUploads.js'></script>
-<script>
-$(function () {
-    $('select').removeClass('class1 text');
-});
-</script>
+    <?php $oemr_ui->oeBelowContainerDiv(); ?>
+    <script src='<?php echo $webroot; ?>/library/js/oeUI/oeFileUploads.js'></script>
+    <script>
+        $(function() {
+            $('select').removeClass('class1 text');
+        });
+    </script>
 </body>
+
 </html>
