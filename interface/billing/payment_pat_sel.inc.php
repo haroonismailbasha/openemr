@@ -3,8 +3,8 @@
 /**
  * payment_pat_sel.inc.php
  *
- * @package   OpenEMR
- * @link      http://www.open-emr.org
+ * @package   iRCMAX
+ * @link   http://ircmax.net
  * @author    Eldho Chacko <eldho@zhservices.com>
  * @author    Paul Simon K <paul@zhservices.com>
  * @author    Stephen Waite <stephen.waite@cmsvt.com>
@@ -14,7 +14,7 @@
  * @copyright Copyright (c) 2018 Stephen Waite <stephen.waite@cmsvt.com>
  * @copyright Copyright (c) 2019-2020 Brady Miller <brady.g.miller@gmail.com>
  * @copyright Copyright (c) 2020 Rod Roark <rod@sunsetsystems.com>
- * @license   https://github.com/openemr/openemr/blob/master/LICENSE GNU General Public License 3
+
  */
 
 use OpenEMR\Billing\SLEOB;
@@ -56,30 +56,30 @@ if (isset($_POST["mode"])) {
 ?>
                     <fieldset>
                     <legend><?php echo xlt('Distribute')?></legend>
-                    <!-- HAROON INSURANCE CHANGE 09032025 START-->
-                                            <label style="color: red;">THESE NON-EDITABLE INSURANCE CHECKBOXES AUTOMATICALLY GETS SELECTED ACCORDING TO PATIENT SELECTED USING BELOW SEARCH</label><br>
+                        <!-- HAROON INSURANCE CHANGE 09032025 START-->
+                        <label style="color: red;">THESE NON-EDITABLE INSURANCE CHECKBOXES AUTOMATICALLY GETS SELECTED ACCORDING TO PATIENT SELECTED USING BELOW SEARCH</label><br>
 
-                                            <input type="checkbox" name="no insurance" onclick="return false" value="1"
-                                                <?php echo $noInsurance ? 'checked' : ''; ?>>
-                                            Has No Insurance
-                                            </label><br>
-                                            <label>
-                                                <input type="checkbox" name="primary_insurance" onclick="return false" value="1"
-                                                    <?php echo $primaryInsurance ? 'checked' : ''; ?>>
-                                                Has Primary Insurance
-                                            </label><br>
-                                            <label>
-                                                <input type="checkbox" name="secondary_insurance" onclick="return false" value="1"
-                                                    <?php echo $secondaryInsurance ? 'checked' : ''; ?>>
-                                                Has Secondary Insurance
-                                            </label><br>
-                                            <label>
-                                                <input type="checkbox" name="tertiary_insurance" onclick="return false" value="1"
-                                                    <?php echo $tertiaryInsurance ? 'checked' : ''; ?>>
-                                                Has Tertiary Insurance
-                                            </label><br>
+                        <input type="checkbox" name="no insurance" onclick="return false" value="1"
+                            <?php echo $noInsurance ? 'checked' : ''; ?>>
+                        Has No Insurance
+                        </label>
+                        <label>
+                            <input type="checkbox" name="primary_insurance" onclick="return false" value="1"
+                                <?php echo $primaryInsurance ? 'checked' : ''; ?>>
+                            Has Primary Insurance
+                        </label>
+                        <label>
+                            <input type="checkbox" name="secondary_insurance" onclick="return false" value="1"
+                                <?php echo $secondaryInsurance ? 'checked' : ''; ?>>
+                            Has Secondary Insurance
+                        </label>
+                        <label>
+                            <input type="checkbox" name="tertiary_insurance" onclick="return false" value="1"
+                                <?php echo $tertiaryInsurance ? 'checked' : ''; ?>>
+                            Has Tertiary Insurance
+                        </label>
 
-                    <!-- HAROON INSURANCE CHANGE 09032025 END-->
+                        <!-- HAROON INSURANCE CHANGE 09032025 END-->
                     <div class="row pb-2" id="TablePatientPortion">
                         <div class="frames col-3">
                             <input id="hidden_ajax_patient_close_value" type="hidden" value="<?php echo (empty($Message)) ? attr($NameNew ?? '') : '' ;?>" />
@@ -136,7 +136,9 @@ if (isset($_POST["mode"])) {
                                         <th><?php echo xlt('Allowed'); ?></th>
                                         <th><?php echo xlt('Payment'); ?></th>
                                         <th><?php echo xlt('Adj Amount'); ?></th>
-                                        <th><?php echo xlt('Deductible'); ?></th>
+                                        <th><?php echo xlt('Deductible/Copay'); ?></th>
+                                        <th><?php echo xlt('Co-ins'); ?></th>
+                                        <th><?php echo xlt('Total'); ?></th>
                                         <th><?php echo xlt('Takeback'); ?></th>
                                         <th><?php echo xlt('MSP'); ?></th>
                                         <th><?php echo xlt('Follow Up'); ?></th>
@@ -283,6 +285,12 @@ if (isset($_POST["mode"])) {
                                 </td>
                                 <td>
                                     <input name="Deductible<?php echo attr($CountIndex); ?>" id="Deductible<?php echo attr($CountIndex); ?>" onKeyDown="PreventIt(event)" onChange="ValidateNumeric(this);UpdateTotalValues(<?php echo attr_js(($CountIndexAbove ?? null) * 1 + 1); ?>,<?php echo attr_js($TotalRows); ?>,'Deductible','initialdeductibletotal');" autocomplete="off" type="text" class="text-right amt_input" />
+                                </td>
+                                <td>
+                                    <input name="coins<?php echo attr($CountIndex); ?>" id="coins<?php echo attr($CountIndex); ?>" onKeyDown="PreventIt(event)" onChange="ValidateNumeric(this);UpdateTotalValues(<?php echo attr_js(($CountIndexAbove ?? null) * 1 + 1); ?>,<?php echo attr_js($TotalRows); ?>,'Deductible','initialdeductibletotal');" autocomplete="off" type="text" class="text-right amt_input" />
+                                </td>
+                                <td>
+                                    <input style="display: none;" name="allTotal<?php echo attr($CountIndex); ?>" id="allTotal<?php echo attr($CountIndex); ?>" onKeyDown="PreventIt(event)" onChange="ValidateNumeric(this);UpdateTotalValues(<?php echo attr_js(($CountIndexAbove ?? null) * 1 + 1); ?>,<?php echo attr_js($TotalRows); ?>,'Deductible','initialdeductibletotal');" autocomplete="off" type="text" class="text-right amt_input" />
                                 </td>
                                 <td>
                                     <input name="Takeback<?php echo attr($CountIndex); ?>" onKeyDown="PreventIt(event)" autocomplete="off" id="Takeback<?php echo attr($CountIndex); ?>" onChange="ValidateNumeric(this);ScreenAdjustment(this,<?php echo attr_js($CountIndex); ?>);UpdateTotalValues(<?php echo attr_js(($CountIndexAbove ?? null) * 1 + 1); ?>,<?php echo attr_js($TotalRows); ?>,'Takeback','initialtakebacktotal');RestoreValues(<?php echo attr_js($CountIndex); ?>)" type="text" class="text-right amt_input" />

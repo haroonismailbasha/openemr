@@ -5,8 +5,8 @@
  *
  * The functions of this class support the billing process like the script billing_process.php.
  *
- * @package   OpenEMR
- * @link      http://www.open-emr.org
+ * @package   iRCMAX
+ * @link   http://ircmax.net
  * @author    Eldho Chacko <eldho@zhservices.com>
  * @author    Paul Simon K <paul@zhservices.com>
  * @author    Stephen Waite <stephen.waite@cmsvt.com>
@@ -14,7 +14,7 @@
  * @copyright Copyright (c) Z&H Consultancy Services Private Limited <sam@zhservices.com>
  * @copyright Copyright (C) 2018 Stephen Waite <stephen.waite@cmsvt.com>
  * @copyright Copyright (c) 2019 Brady Miller <brady.g.miller@gmail.com>
- * @license   https://github.com/openemr/openemr/blob/master/LICENSE GNU General Public License 3
+
  */
 
 require_once("../globals.php");
@@ -47,17 +47,16 @@ $hidden_type_code        = isset($_REQUEST['hidden_type_code']) ? $_REQUEST['hid
 //===============================================================================
 //ar_session addition code
 //===============================================================================
-
 // ************** HAROON INSURANCE CHANGE 09032025 START ***************
 $pid = $hidden_patient_code;
 if(!$pid==""){
- $noInsurance = false;
+    $noInsurance = false;
     $primaryInsurance = false;
     $secondaryInsurance = false;
     $tertiaryInsurance = false;
-    $insuranceCheckerQuery = "select id.type from patient_data pd 
+    $insuranceCheckerQuery = "select id.type from patient_data pd
                               inner JOIN insurance_data id on pd.pid=id.pid
-                              inner join insurance_companies ic on id.provider =ic.id 
+                              inner join insurance_companies ic on id.provider =ic.id
                               where pd.pid=" .
         $pid;
     $resultSet = sqlStatement($insuranceCheckerQuery);
@@ -76,17 +75,16 @@ if(!$pid==""){
                 $noInsurance = true;
             }
         }
-    } 
-     else{
+    }
+    else{
         $noInsurance = true;
-        
+
     }
 }
 
 
 
 // ************** HAROON INSURANCE CHANGE 09032025 END ***************
-
 if ($mode == "new_payment" || $mode == "distribute") {
     if (trim($_POST['type_name']) == 'insurance') {
         $QueryPart = "payer_id = '" . add_escape_custom($hidden_type_code) . "', patient_id = '0" ;
@@ -254,20 +252,31 @@ $payment_id = $payment_id * 1 > 0 ? $payment_id + 0 : $request_payment_id + 0;
         function CompletlyBlank() {
             // Checks whether any of the allocation row is filled.
             for (RowCount = 1;;RowCount++) {
-                if(!document.getElementById('Payment'+RowCount)) {
+                if((!document.getElementById('Payment'+RowCount))) {
                     break;
-                } else {
-                    if(document.getElementById('Allowed'+RowCount).value==''
+                }
+                else {
+
+                    if((document.getElementById('Allowed'+RowCount).value==''
                         && document.getElementById('Payment'+RowCount).value==''
                         && document.getElementById('AdjAmount'+RowCount).value==''
                         && document.getElementById('Deductible'+RowCount).value==''
                         && document.getElementById('Takeback'+RowCount).value==''
-                        && document.getElementById('FollowUp'+RowCount).checked==false) {
-
-                    } else {
+                        && document.getElementById('FollowUp'+RowCount).checked==false)) {
+                        if((document.getElementById('payment_ins'+RowCount).value === '5')){
+                            // alert('inside if '+(document.getElementById('payment_ins'+RowCount).value));
+                            return false;
+                        }
+                        else{
+                            // alert('inside else '+(document.getElementById('payment_ins'+RowCount).value));
+                            return true;
+                        }
+                    }
+                    else{
                         return false;
                     }
                 }
+
             }
             return true;
         }
@@ -384,9 +393,6 @@ $payment_id = $payment_id * 1 > 0 ? $payment_id + 0 : $request_payment_id + 0;
                         ?>
                         </div>
                         <br />
-                                       
-
-
                         <?php
                         if ($payment_id * 1 > 0) {
                             ?>
