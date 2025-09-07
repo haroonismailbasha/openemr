@@ -56,7 +56,6 @@ if (isset($_POST["mode"])) {
 ?>
                     <fieldset>
                     <legend><?php echo xlt('Distribute')?></legend>
-		    	<!-- HAROON INSURANCE CHANGE 09032025 START-->
                          <!-- HAROON INSURANCE CHANGE 09032025 START-->
                         <label>
                             <?php if ($secondaryInsurance): ?>

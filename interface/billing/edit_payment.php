@@ -1,5 +1,4 @@
 <?php
-ini_set('display_errors', 1);
 /*
  * Payments can be edited here whch includes deletion of an allocation, modifying the
  * same or adding a new allocation. Log is kept for the deleted ones.

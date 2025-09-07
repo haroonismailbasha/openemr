@@ -79,6 +79,7 @@ if(!$pid==""){
     else{
         $noInsurance = true;
     }
+}
     // ************** HAROON INSURANCE CHANGE 09032025 END ***************
 if ($mode == "new_payment" || $mode == "distribute") {
     if (trim($_POST['type_name']) == 'insurance') {

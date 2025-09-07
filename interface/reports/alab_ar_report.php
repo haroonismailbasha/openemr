@@ -257,12 +257,12 @@ if (!empty($_POST['download_csv'])) {
     }
     $timestamp = date('Y-m-d_H-i-s');
     $query = "SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed,IF(b.billed = 0, 'Unbilled', 'Billed') AS billing_status,  f.last_level_closed, f.last_stmt_date, f.stmt_count, f.invoice_refno, f.in_collection, p.fname, p.mname, p.lname, p.street, p.city, p.state, p.postal_code, p.phone_home, p.ss, p.billing_note, p.pubpid, p.DOB, CONCAT(u.lname, ', ', u.fname) AS referrer, (SELECT bill_date FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type != 'COPAY' LIMIT 1) AS bill_date, (SELECT SUM(b.fee) FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type != 'COPAY') AS charges, (SELECT SUM(b.fee) FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type = 'COPAY') AS copays, (SELECT SUM(s.fee) FROM drug_sales AS s WHERE s.pid = f.pid AND s.encounter = f.encounter) AS sales, a.pay_amount AS payments, a.adj_amount AS adjustments, cpt.code AS cpt_codes FROM form_encounter AS f JOIN patient_data AS p ON p.pid = f.pid JOIN billing AS b ON f.pid = b.pid LEFT OUTER JOIN users AS u ON u.id = f.referring_provider_id LEFT OUTER JOIN users AS w ON w.id = f.provider_id LEFT JOIN (SELECT pid, encounter, code FROM billing WHERE code_type = 'CPT4' AND activity = 1) cpt ON cpt.pid = f.pid AND cpt.encounter = f.encounter LEFT JOIN ar_activity AS a ON a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL AND " .
-        $where .
-        " ORDER BY f.pid, f.encounter, cpt.code;";
+        $where ;
+        // " ORDER BY f.pid, f.encounter, cpt.code;";
 
     $eres = sqlStatement($query, $sqlArray);
 
-    $filename = "collections_export_{$timestamp}.csv";
+    $filename = "alab_ar_report_export_{$timestamp}.csv";
     chdir("../../sites/default/documents/temp/");
     $filePath = getcwd() . "/" . $filename;
     error_reporting(0);
@@ -301,6 +301,7 @@ if (!empty($_POST['download_csv'])) {
     }
 
     fclose($output);
+
     exit;
 } else {
 ?>
@@ -337,6 +338,7 @@ if (!empty($_POST['download_csv'])) {
                 }
             }
         </style>
+
 
         <script>
             function reSubmit() {
