@@ -57,26 +57,11 @@ if (isset($_POST["mode"])) {
                     <fieldset>
                     <legend><?php echo xlt('Distribute')?></legend>
                         <!-- HAROON INSURANCE CHANGE 09032025 START-->
-                        <label style="color: red;">THESE NON-EDITABLE INSURANCE CHECKBOXES AUTOMATICALLY GETS SELECTED ACCORDING TO PATIENT SELECTED USING BELOW SEARCH</label><br>
-
-                        <input type="checkbox" name="no insurance" onclick="return false" value="1"
-                            <?php echo $noInsurance ? 'checked' : ''; ?>>
-                        Has No Insurance
-                        </label>
+                         <!-- HAROON INSURANCE CHANGE 09032025 START-->
                         <label>
-                            <input type="checkbox" name="primary_insurance" onclick="return false" value="1"
-                                <?php echo $primaryInsurance ? 'checked' : ''; ?>>
-                            Has Primary Insurance
-                        </label>
-                        <label>
-                            <input type="checkbox" name="secondary_insurance" onclick="return false" value="1"
-                                <?php echo $secondaryInsurance ? 'checked' : ''; ?>>
-                            Has Secondary Insurance
-                        </label>
-                        <label>
-                            <input type="checkbox" name="tertiary_insurance" onclick="return false" value="1"
-                                <?php echo $tertiaryInsurance ? 'checked' : ''; ?>>
-                            Has Tertiary Insurance
+                            <?php if ($secondaryInsurance): ?>
+                                <span style="color: green;">✓</span> <span style="color: red;"> Secondary Insurance Available </span>
+                            <?php endif; ?>
                         </label>
 
                         <!-- HAROON INSURANCE CHANGE 09032025 END-->
