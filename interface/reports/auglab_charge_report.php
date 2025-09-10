@@ -253,7 +253,20 @@ if (!empty($_POST['download_csv'])) {
         $where = "1 = 1";
     }
     $timestamp = date('Y-m-d_H-i-s');
-    $query = "SELECT b.pid,b.encounter as encounter_id,CONCAT(pd.lname, ', ', pd.fname) AS patient_name,CONCAT(u.lname, ', ', u.fname) AS provider_name,fe.date,b.code,b.code_type,b.code_text,b.fee,c.modifier,CONCAT(u.lname, ', ', u.fname) AS provider_name,IF(b.billed = 0,'Unbilled','Billed') AS billing_status/*, b.units,fe.facility_id,fe.invoice_refno,lo.title */ FROM billing AS b JOIN patient_data pd on b.pid=pd.pid JOIN code_types AS ct ON ct.ct_key = b.code_type JOIN form_encounter AS fe ON fe.pid = b.pid AND fe.encounter = b.encounter LEFT JOIN codes AS c ON c.code_type = ct.ct_id AND c.code = b.code AND c.modifier = b.modifier LEFT JOIN list_options AS lo ON lo.list_id = 'superbill' AND lo.option_id = c.superbill AND lo.activity = 1 join facility f on f.id=fe.facility_id join users u on u.id=fe.provider_id WHERE b.code_type != 'COPAY' AND b.activity = 1 AND b.fee != 0 AND " .
+    $query = "SELECT b.pid,b.encounter as encounter_id,CONCAT(pd.lname, ', ', pd.fname) AS patient_Lastname_FirstName,ic.name as insurance_company,
+    CONCAT(u.lname, ', ', u.fname) AS provider_name,fe.date,b.code,b.code_type,b.code_text,b.fee,c.modifier,
+    CONCAT(u.lname, ', ', u.fname) AS provider_name,IF(b.billed = 0,'Unbilled','Billed') AS billing_status,
+    CONCAT(us.lname, ', ', us.fname) AS referrer,fe.hl7_file_name,
+    fe.onset_date feOnsetDate,fe.last_stmt_date as feLastStatementDate ,fe.date_end as formEncounterDateEnd, fe.last_update as feLastUpdate,b.Date as bdate, b.bill_date as bbilldate,b.process_date as bProcessDate
+    /*, b.units,fe.facility_id,fe.invoice_refno,lo.title */ FROM billing AS b 
+    JOIN patient_data pd on b.pid=pd.pid 
+    JOIN code_types AS ct ON ct.ct_key = b.code_type 
+    JOIN form_encounter AS fe ON fe.pid = b.pid AND fe.encounter = b.encounter
+    LEFT OUTER JOIN users AS us ON us.id = fe.referring_provider_id
+    LEFT JOIN codes AS c ON c.code_type = ct.ct_id AND c.code = b.code AND c.modifier = b.modifier LEFT JOIN list_options AS lo ON lo.list_id = 'superbill'
+    AND lo.option_id = c.superbill AND lo.activity = 1 join facility f on f.id=fe.facility_id join users u on u.id=fe.provider_id 
+    join insurance_data id on pd.pid=id.pid inner join  insurance_companies ic on id.provider =ic.id 
+    WHERE b.code_type != 'COPAY' AND b.activity = 1 AND b.fee != 0 AND " .
     $where;
 
     $eres = sqlStatement($query, $sqlArray);
