@@ -25,6 +25,19 @@ require_once("../globals.php");
 require_once("../../library/patient.inc.php");
 require_once "$srcdir/options.inc.php";
 
+//new logic start
+ini_set('memory_limit', -1);
+set_time_limit(0);
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
+
+date_default_timezone_set('Asia/Kolkata');
+
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+
+//new logic end
+
 use OpenEMR\Billing\InvoiceSummary;
 use OpenEMR\Billing\SLEOB;
 use OpenEMR\Common\Acl\AclMain;
@@ -223,158 +236,393 @@ function insuranceSelect()
     }
 }
 
-$sqlArray = array(); 
+$sqlArray = array();
 if (!empty($_POST['form_refresh'])) {
-    $_POST['download_csv'] = '1';   
+    $_POST['download_csv'] = '1';
 }
 
 
 
 if (!empty($_POST['download_csv'])) {
-    $rows = array();
-    $where = "";
-    // HAROON_CHANGE_4_START_08262025
-    // $where .= " /** haroon start **/ b.code_type like '%' /** haroon end **/ ";
-    //HAROON_CHANGE_4_END_08262025
+    // ====== DB CONFIG ======
+    $DB_HOST = '172.17.0.1:8320';
+    $DB_NAME = 'openemr';
+    $DB_USER = 'openemr';
+    $DB_PASS = 'openemr';
+    $DB_CHARSET = 'utf8mb4';
 
-    // $sqlArray = array();
-    if ($form_date) {
-        if ($where) {
-            $where .= " AND ";
+    // ====== OUTPUT CONFIG ======
+    $OUTPUT_FORMAT = 'csv'; // 'csv' or 'xlsx'
+    $CSV_PATH = __DIR__ . '/patient_billing_export.csv';
+    $XLSX_PATH = __DIR__ . '/patient_billing_export.xlsx';
+
+    // ====== CONNECT PDO ======
+    $dsn = "mysql:host={$DB_HOST};dbname={$DB_NAME};charset={$DB_CHARSET}";
+    $options = [
+        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES   => false,
+    ];
+    $pdo = new PDO($dsn, $DB_USER, $DB_PASS, $options);
+
+    // ====== FETCH ALL PIDs ======
+    $pidSql = "SELECT pid FROM patient_data ORDER BY pid";
+    $pidStmt = $pdo->query($pidSql);
+    $pids = $pidStmt->fetchAll(PDO::FETCH_COLUMN, 0);
+
+    // ====== YOUR ORIGINAL QUERY (parameterized on :pid) ======
+    // NOTE: Kept exactly as provided, only b.pid = :pid is parameterized.
+    // If you encounter warning #1292 (empty string to INT), you can optionally add
+    //   AND b.code <> ''
+    // at the JOIN and correlated subqueries comparing codes — but we are not changing
+    // your logic here.
+    $sql = <<<SQL
+SELECT f.id, f.date, f.pid,
+       CONCAT(w.lname, ', ', w.fname) AS provider_id,
+       f.encounter, f.last_level_billed, f.last_level_closed, f.last_stmt_date,
+       f.stmt_count, f.invoice_refno, f.in_collection,
+       p.fname, p.mname, p.lname, p.street, p.city, p.state, p.postal_code,
+       p.phone_home, p.ss, p.billing_note, p.pubpid, p.DOB,
+       CONCAT(u.lname, ', ', u.fname) AS referrer,
+       (SELECT insurance_companies.name
+          FROM insurance_data
+          JOIN insurance_companies ON insurance_companies.id = insurance_data.provider
+         WHERE insurance_data.type = 'primary'
+           AND insurance_data.pid = p.pid
+         LIMIT 1) AS insurance_name,
+       (SELECT bill_date
+          FROM billing AS b
+         WHERE b.pid = f.pid
+           AND b.encounter = f.encounter
+           AND b.activity = 1
+           AND b.code_type != 'COPAY'
+         LIMIT 1) AS bill_date,
+       (SELECT SUM(b.fee)
+          FROM billing AS b
+         WHERE b.pid = f.pid
+           AND b.encounter = f.encounter
+           AND b.activity = 1
+           AND b.code_type != 'COPAY') AS charges,
+       (SELECT SUM(b.fee)
+          FROM billing AS b
+         WHERE b.pid = f.pid
+           AND b.encounter = f.encounter
+           AND b.activity = 1
+           AND b.code_type = 'COPAY') AS copays,
+       (SELECT SUM(s.fee)
+          FROM drug_sales AS s
+         WHERE s.pid = f.pid
+           AND s.encounter = f.encounter) AS sales,
+       b.code,
+       (SELECT SUM(a.pay_amount)
+          FROM ar_activity AS a
+         WHERE a.pid = f.pid
+           AND a.encounter = f.encounter
+           AND a.deleted IS NULL) AS payments,
+       (SELECT SUM(a.adj_amount)
+          FROM ar_activity AS a
+         WHERE a.pid = f.pid
+           AND a.encounter = f.encounter
+           AND a.deleted IS NULL) AS adjustments,
+       CASE WHEN b.billed = 1 THEN 'Billed' ELSE 'Not billed' END AS billing_status,
+       b.fee AS chg,
+       (SELECT a.pay_amount
+          FROM ar_activity AS a
+         WHERE a.encounter = b.encounter
+           AND a.code = b.code
+           AND a.pay_amount > 0
+         LIMIT 1) AS paid,
+       (SELECT a.adj_amount
+          FROM ar_activity AS a
+         WHERE a.encounter = b.encounter
+           AND a.code = b.code
+           AND a.adj_amount > 0
+         LIMIT 1) AS adj
+FROM billing b
+JOIN patient_data AS p ON p.pid = b.pid
+JOIN form_encounter AS f ON f.pid = p.pid
+JOIN ar_activity ON ar_activity.encounter = b.encounter AND ar_activity.code = b.code
+LEFT OUTER JOIN users AS u ON u.id = f.referring_provider_id
+LEFT OUTER JOIN users AS w ON w.id = f.provider_id
+WHERE ar_activity.deleted IS NULL
+  AND b.code_type = 'CPT4'
+  AND b.pid = :pid
+GROUP BY ar_activity.code
+SQL;
+
+    $detailStmt = $pdo->prepare($sql);
+
+    // ====== OUTPUT HANDLERS ======
+    $headerWritten = false;
+    $columnsOrder = [];
+
+    if ($OUTPUT_FORMAT === 'csv') {
+        $fp = fopen($CSV_PATH, file_exists($CSV_PATH) ? 'a' : 'w');
+        if (!$fp) {
+            throw new RuntimeException('Unable to open CSV for writing: ' . $CSV_PATH);
         }
+        // If appending to existing file that already has content, don't re-write header
+        $headerWritten = (filesize($CSV_PATH) > 0);
+    } elseif ($OUTPUT_FORMAT === 'xlsx') {
 
-        if ($form_to_date) {
-            $where .= "f.date >= ? AND f.date <= ? ";
-            array_push($sqlArray, $form_date . ' 00:00:00', $form_to_date . ' 23:59:59');
+        if (file_exists($XLSX_PATH)) {
+            $spreadsheet = IOFactory::load($XLSX_PATH);
+            $sheet = $spreadsheet->getActiveSheet();
+            $startRow = $sheet->getHighestRow(); // last used row
+            $headerWritten = ($startRow >= 1);
         } else {
-            $where .= "f.date >= ? AND f.date <= ? ";
-            array_push($sqlArray, $form_date . ' 00:00:00', $form_date . ' 23:59:59');
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $startRow = 0;
         }
-
-        $where .= " ORDER BY f.pid, f.encounter; ";
-
+    } else {
+        throw new InvalidArgumentException('Invalid $OUTPUT_FORMAT; use csv or xlsx');
     }
 
-    if (! $where) {
-        $where = "1 = 1";
-    }
-    $sqlArray = array(); 
-    $timestamp = date('Y-m-d_H-i-s');
-    $query = "SELECT f.id, f.date, f.pid,
-        CONCAT(w.lname, ', ', w.fname) AS provider_id,
-        f.encounter, f.last_level_billed, f.last_level_closed, f.last_stmt_date,
-        f.stmt_count, f.invoice_refno, f.in_collection,
-        p.fname, p.mname, p.lname, p.street, p.city, p.state, p.postal_code,
-        p.phone_home, p.ss, p.billing_note, p.pubpid, p.DOB,
-        CONCAT(u.lname, ', ', u.fname) AS referrer,
-        (SELECT insurance_companies.name
-            FROM insurance_data
-            JOIN insurance_companies ON insurance_companies.id = insurance_data.provider
-            WHERE insurance_data.type = 'primary'
-            AND insurance_data.pid = p.pid
-            LIMIT 1) AS insurance_name,
-        (SELECT bill_date
-            FROM billing AS b
-            WHERE b.pid = f.pid
-            AND b.encounter = f.encounter
-            AND b.activity = 1
-            AND b.code_type != 'COPAY'
-            LIMIT 1) AS bill_date,
-        (SELECT SUM(b.fee)
-            FROM billing AS b
-            WHERE b.pid = f.pid
-            AND b.encounter = f.encounter
-            AND b.activity = 1
-            AND b.code_type != 'COPAY') AS charges,
-        (SELECT SUM(b.fee)
-            FROM billing AS b
-            WHERE b.pid = f.pid
-            AND b.encounter = f.encounter
-            AND b.activity = 1
-            AND b.code_type = 'COPAY') AS copays,
-        (SELECT SUM(s.fee)
-            FROM drug_sales AS s
-            WHERE s.pid = f.pid
-            AND s.encounter = f.encounter) AS sales,
-        b.code,
-        (SELECT SUM(a.pay_amount)
-            FROM ar_activity AS a
-            WHERE a.pid = f.pid
-            AND a.encounter = f.encounter
-            AND a.deleted IS NULL) AS payments,
-        (SELECT SUM(a.adj_amount)
-            FROM ar_activity AS a
-            WHERE a.pid = f.pid
-            AND a.encounter = f.encounter
-            AND a.deleted IS NULL) AS adjustments,
-        CASE WHEN b.billed = 1 THEN 'Billed' ELSE 'Not billed' END AS billing_status,
-        b.fee AS chg,
-        (SELECT a.pay_amount
-            FROM ar_activity AS a
-            WHERE a.encounter = b.encounter
-            AND a.code = b.code
-            AND a.pay_amount > 0
-            LIMIT 1) AS paid,
-            (SELECT a.adj_amount
-            FROM ar_activity AS a
-            WHERE a.encounter = b.encounter
-            AND a.code = b.code
-            AND a.adj_amount > 0
-            LIMIT 1) AS adj
-            FROM billing b
-            JOIN patient_data AS p ON p.pid = b.pid
-            JOIN form_encounter AS f ON f.pid = p.pid
-            JOIN ar_activity ON ar_activity.encounter = b.encounter AND ar_activity.code = b.code
-            LEFT OUTER JOIN users AS u ON u.id = f.referring_provider_id
-            LEFT OUTER JOIN users AS w ON w.id = f.provider_id
-            WHERE ar_activity.deleted IS NULL
-            AND b.code_type = 'CPT4'
-            /*AND b.pid = :pid*/ 
-            GROUP BY ar_activity.code";
+    // ====== MAIN LOOP ======
+    $totalRows = 0;
+    foreach ($pids as $pid) {
+        $detailStmt->execute([':pid' => $pid]);
 
-    $eres = sqlStatement($query, $sqlArray);
+        while ($row = $detailStmt->fetch()) {
+            // Lazily write header once based on first row's keys
+            if (!$headerWritten) {
+                $columnsOrder = array_keys($row);
+                if ($OUTPUT_FORMAT === 'csv') {
+                    fputcsv($fp, $columnsOrder);
+                } else { // xlsx
+                    $col = 1;
+                    $hdrRow = 1;
+                    foreach ($columnsOrder as $colName) {
+                        $sheet->setCellValueByColumnAndRow($col++, $hdrRow, $colName);
+                    }
+                    $headerWritten = true;
+                }
+                $headerWritten = true;
+            }
 
-    $filename = "alab_ar_report_export_{$timestamp}.csv";
-    chdir("../../sites/default/documents/temp/");
-    $filePath = getcwd() . "/" . $filename;
-    error_reporting(0);
+            // Ensure consistent column order
+            if (empty($columnsOrder)) {
+                $columnsOrder = array_keys($row);
+            }
+            $ordered = [];
+            foreach ($columnsOrder as $k) {
+                $ordered[] = $row[$k];
+            }
 
-    while (ob_get_level()) {
-        ob_end_clean();
-    }
-
-    // Set headers FIRST
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Cache-Control: private, no-transform, no-store, must-revalidate');
-    header('Expires: 0');
-    header('Pragma: no-cache');
-
-    $output = fopen('php://output', 'w');
-
-    fprintf($output, "\xEF\xBB\xBF");
-
-    $result = sqlStatement($query, $sqlArray);
-
-    $first = true;
-    while ($row = sqlFetchArray($result)) {
-        if ($first) {
-            // Output headers
-            fputcsv($output, array_keys($row));
-            $first = false;
+            if ($OUTPUT_FORMAT === 'csv') {
+                fputcsv($fp, $ordered);
+            } else { // xlsx
+                $startRow = $sheet->getHighestRow();
+                $writeRow = max(2, $startRow + 1);
+                $col = 1;
+                foreach ($ordered as $val) {
+                    $sheet->setCellValueByColumnAndRow($col++, $writeRow, $val);
+                }
+            }
+            $totalRows++;
         }
-
-        $cleanRow = array_map(function ($value) {
-            if ($value === null) return '';
-            return str_replace(array("\r", "\n"), ' ', $value);
-        }, $row);
-
-        fputcsv($output, $cleanRow);
     }
 
-    fclose($output);
+    // ====== SAVE FILE ======
+    if ($OUTPUT_FORMAT === 'csv') {
+        fclose($fp);
+        $source = $CSV_PATH;
+        chdir("../../sites/default/documents/temp/");
+        $destination = getcwd()."/". basename($source);
 
-    exit;
+        if (copy($source, $destination)) {
+            echo "File copied successfully";
+        } else {
+            echo "Failed to copy file";
+        }
+        echo "CSV export complete: {$CSV_PATH} (rows: {$totalRows})\n";
+
+        // Debug the file
+        // echo "File path: " . $CSV_PATH . "<br>";
+        // echo "File exists: " . (file_exists($CSV_PATH) ? "Yes" : "No") . "<br>";
+        // echo "File size: " . filesize($CSV_PATH) . " bytes<br>";
+
+        // $file = $CSV_PATH; // Path to file on server
+   
+        // echo "Input File name is " . $file;
+        // echo "Output File name is " . $filename;
+        // // Debug the file
+        // echo "File path: " . $file . "<br>";
+        // echo "File exists: " . (file_exists($file) ? "Yes" : "No") . "<br>";
+        // echo "File size: " . filesize($file) . " bytes<br>";
+        $timestamp = date('Y-m-d_H-i-s');
+        $filename = "alab_ar_report_export_{$timestamp}.csv"; 
+        if (file_exists($destination)) {
+            // Set headers to force download
+            header('Content-Description: File Transfer');
+            header('Content-Type: text/csv');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Expires: 0');
+            header('Cache-Control: must-revalidate');
+            header('Pragma: public');
+            header('Content-Length: ' . filesize($destination));
+
+            // Clear output buffer
+            ob_clean();
+            flush();
+
+            // Read and output file
+            readfile($destination);
+            exit;
+        } else {
+            echo "File not found.";
+        }
+    } else {
+        $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
+        $writer->save($XLSX_PATH);
+        echo "XLSX export complete: {$XLSX_PATH} (rows: {$totalRows})\n";
+    }
+
+    // $rows = array();
+    // $where = "";
+    // // HAROON_CHANGE_4_START_08262025
+    // // $where .= " /** haroon start **/ b.code_type like '%' /** haroon end **/ ";
+    // //HAROON_CHANGE_4_END_08262025
+
+    // // $sqlArray = array();
+    // if ($form_date) {
+    //     if ($where) {
+    //         $where .= " AND ";
+    //     }
+
+    //     if ($form_to_date) {
+    //         $where .= "f.date >= ? AND f.date <= ? ";
+    //         array_push($sqlArray, $form_date . ' 00:00:00', $form_to_date . ' 23:59:59');
+    //     } else {
+    //         $where .= "f.date >= ? AND f.date <= ? ";
+    //         array_push($sqlArray, $form_date . ' 00:00:00', $form_date . ' 23:59:59');
+    //     }
+
+    //     $where .= " ORDER BY f.pid, f.encounter; ";
+
+    // }
+
+    // if (! $where) {
+    //     $where = "1 = 1";
+    // }
+    // $sqlArray = array(); 
+    // $timestamp = date('Y-m-d_H-i-s');
+    // $query = "SELECT f.id, f.date, f.pid,
+    //     CONCAT(w.lname, ', ', w.fname) AS provider_id,
+    //     f.encounter, f.last_level_billed, f.last_level_closed, f.last_stmt_date,
+    //     f.stmt_count, f.invoice_refno, f.in_collection,
+    //     p.fname, p.mname, p.lname, p.street, p.city, p.state, p.postal_code,
+    //     p.phone_home, p.ss, p.billing_note, p.pubpid, p.DOB,
+    //     CONCAT(u.lname, ', ', u.fname) AS referrer,
+    //     (SELECT insurance_companies.name
+    //         FROM insurance_data
+    //         JOIN insurance_companies ON insurance_companies.id = insurance_data.provider
+    //         WHERE insurance_data.type = 'primary'
+    //         AND insurance_data.pid = p.pid
+    //         LIMIT 1) AS insurance_name,
+    //     (SELECT bill_date
+    //         FROM billing AS b
+    //         WHERE b.pid = f.pid
+    //         AND b.encounter = f.encounter
+    //         AND b.activity = 1
+    //         AND b.code_type != 'COPAY'
+    //         LIMIT 1) AS bill_date,
+    //     (SELECT SUM(b.fee)
+    //         FROM billing AS b
+    //         WHERE b.pid = f.pid
+    //         AND b.encounter = f.encounter
+    //         AND b.activity = 1
+    //         AND b.code_type != 'COPAY') AS charges,
+    //     (SELECT SUM(b.fee)
+    //         FROM billing AS b
+    //         WHERE b.pid = f.pid
+    //         AND b.encounter = f.encounter
+    //         AND b.activity = 1
+    //         AND b.code_type = 'COPAY') AS copays,
+    //     (SELECT SUM(s.fee)
+    //         FROM drug_sales AS s
+    //         WHERE s.pid = f.pid
+    //         AND s.encounter = f.encounter) AS sales,
+    //     b.code,
+    //     (SELECT SUM(a.pay_amount)
+    //         FROM ar_activity AS a
+    //         WHERE a.pid = f.pid
+    //         AND a.encounter = f.encounter
+    //         AND a.deleted IS NULL) AS payments,
+    //     (SELECT SUM(a.adj_amount)
+    //         FROM ar_activity AS a
+    //         WHERE a.pid = f.pid
+    //         AND a.encounter = f.encounter
+    //         AND a.deleted IS NULL) AS adjustments,
+    //     CASE WHEN b.billed = 1 THEN 'Billed' ELSE 'Not billed' END AS billing_status,
+    //     b.fee AS chg,
+    //     (SELECT a.pay_amount
+    //         FROM ar_activity AS a
+    //         WHERE a.encounter = b.encounter
+    //         AND a.code = b.code
+    //         AND a.pay_amount > 0
+    //         LIMIT 1) AS paid,
+    //         (SELECT a.adj_amount
+    //         FROM ar_activity AS a
+    //         WHERE a.encounter = b.encounter
+    //         AND a.code = b.code
+    //         AND a.adj_amount > 0
+    //         LIMIT 1) AS adj
+    //         FROM billing b
+    //         JOIN patient_data AS p ON p.pid = b.pid
+    //         JOIN form_encounter AS f ON f.pid = p.pid
+    //         JOIN ar_activity ON ar_activity.encounter = b.encounter AND ar_activity.code = b.code
+    //         LEFT OUTER JOIN users AS u ON u.id = f.referring_provider_id
+    //         LEFT OUTER JOIN users AS w ON w.id = f.provider_id
+    //         WHERE ar_activity.deleted IS NULL
+    //         AND b.code_type = 'CPT4'
+    //         /*AND b.pid = :pid*/
+    //         GROUP BY ar_activity.code";
+
+    // $eres = sqlStatement($query, $sqlArray);
+
+    // $filename = "alab_ar_report_export_{$timestamp}.csv";
+    // chdir("../../sites/default/documents/temp/");
+    // $filePath = getcwd() . "/" . $filename;
+    // error_reporting(0);
+
+    // while (ob_get_level()) {
+    //     ob_end_clean();
+    // }
+
+    // // Set headers FIRST
+    // header('Content-Type: text/csv; charset=utf-8');
+    // header('Content-Disposition: attachment; filename="' . $filename . '"');
+    // header('Cache-Control: private, no-transform, no-store, must-revalidate');
+    // header('Expires: 0');
+    // header('Pragma: no-cache');
+
+    // $output = fopen('php://output', 'w');
+
+    // fprintf($output, "\xEF\xBB\xBF");
+
+    // $result = sqlStatement($query, $sqlArray);
+
+    // $first = true;
+    // while ($row = sqlFetchArray($result)) {
+    //     if ($first) {
+    //         // Output headers
+    //         fputcsv($output, array_keys($row));
+    //         $first = false;
+    //     }
+
+    //     $cleanRow = array_map(function ($value) {
+    //         if ($value === null) return '';
+    //         return str_replace(array("\r", "\n"), ' ', $value);
+    //     }, $row);
+
+    //     fputcsv($output, $cleanRow);
+    // }
+
+    // fclose($output);
+
+    // exit;
 } else {
 ?>
     <html>
@@ -489,55 +737,55 @@ if (!empty($_POST['download_csv'])) {
 
                 <!-- HAROON_CHANGE_2_END_08262025  -->
 
-                
-                            <table>
 
-                                <tr>
-                                    <td hidden class='col-form-label'>
-                                        <?php echo xlt('Service Date'); ?>:
-                                    </td>
-                                    <td>
-                                        <input hidden type='text' class='datepicker form-control' name='form_date' id="form_date" size='10' value='<?php echo attr(oeFormatShortDate($form_date)); ?>'>
-                                    </td>
-                                    <td hidden class='col-form-label'>
-                                        <?php echo xlt('To{{Range}}'); ?>:
-                                    </td>
-                                    <td>
-                                        <input hidden type='text' class='datepicker form-control' name='form_to_date' id="form_to_date" size='10' value='<?php echo attr(oeFormatShortDate($form_to_date)); ?>'>
-                                    </td>
+                <table>
+
+                    <tr>
+                        <td hidden class='col-form-label'>
+                            <?php echo xlt('Service Date'); ?>:
+                        </td>
+                        <td>
+                            <input hidden type='text' class='datepicker form-control' name='form_date' id="form_date" size='10' value='<?php echo attr(oeFormatShortDate($form_date)); ?>'>
+                        </td>
+                        <td hidden class='col-form-label'>
+                            <?php echo xlt('To{{Range}}'); ?>:
+                        </td>
+                        <td>
+                            <input hidden type='text' class='datepicker form-control' name='form_to_date' id="form_to_date" size='10' value='<?php echo attr(oeFormatShortDate($form_to_date)); ?>'>
+                        </td>
 
 
 
-                                </tr>
+                    </tr>
 
-                            </table>
-                            <div class="text-center">
-                                    <div class="btn-group" role="group">
-                                        <a href='#' class='btn btn-secondary btn-save' onclick='$("#form_refresh").attr("value","true"); $("#form_csvexport").val(""); $("#form_export").val(""); $("#form_clear_ins_debt").val(""); $("#theform").submit();'>
-                                            <?php echo xlt('Generate AR Activity Report'); ?>
-                                        </a>
-                                        <?php if (!empty($_POST['form_refresh'])) { ?>
-                                            <a href='#' class='btn btn-secondary btn-print' onclick='window.print()'>
-                                                <?php echo xlt('Print'); ?>
-                                            </a>
-                                        <?php } ?>
-                                    </div>
-                                </div>
-                       
-
+                </table>
+                <div class="text-center">
+                    <div class="btn-group" role="group">
+                        <a href='#' class='btn btn-secondary btn-save' onclick='$("#form_refresh").attr("value","true"); $("#form_csvexport").val(""); $("#form_export").val(""); $("#form_clear_ins_debt").val(""); $("#theform").submit();'>
+                            <?php echo xlt('Generate AR Activity Report'); ?>
+                        </a>
+                        <?php if (!empty($_POST['form_refresh'])) { ?>
+                            <a href='#' class='btn btn-secondary btn-print' onclick='window.print()'>
+                                <?php echo xlt('Print'); ?>
+                            </a>
+                        <?php } ?>
+                    </div>
                 </div>
 
-                </td>
-                <td align='left' valign='middle' height="100%">
-                    <table style='border-left:1px solid; width:100%; height:100%'>
-                        <tr>
-                            <td>
-                                
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-                </tr>
+
+            </div>
+
+            </td>
+            <td align='left' valign='middle' height="100%">
+                <table style='border-left:1px solid; width:100%; height:100%'>
+                    <tr>
+                        <td>
+
+                        </td>
+                    </tr>
+                </table>
+            </td>
+            </tr>
             </table>
             </div>
         </form>
