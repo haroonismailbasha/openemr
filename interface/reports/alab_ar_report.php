@@ -258,10 +258,79 @@ if (!empty($_POST['download_csv'])) {
     if (! $where) {
         $where = "1 = 1";
     }
+    $sqlArray = array(); 
     $timestamp = date('Y-m-d_H-i-s');
-    $query = "SELECT f.id, f.date, f.pid, CONCAT(w.lname, ', ', w.fname) AS provider_id, f.encounter, f.last_level_billed, f.last_level_closed, f.last_stmt_date, f.stmt_count, f.invoice_refno, f.in_collection, p.fname, p.mname, p.lname, p.street, p.city, p.state, p.postal_code, p.phone_home, p.ss, p.billing_note, p.pubpid, p.DOB, CONCAT(u.lname, ', ', u.fname) AS referrer, ( SELECT bill_date FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type != 'COPAY' LIMIT 1) AS bill_date, ( SELECT SUM(b.fee) FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type != 'COPAY' ) AS charges, ( SELECT SUM(b.fee) FROM billing AS b WHERE b.pid = f.pid AND b.encounter = f.encounter AND b.activity = 1 AND b.code_type = 'COPAY' ) AS copays, ( SELECT SUM(s.fee) FROM drug_sales AS s WHERE s.pid = f.pid AND s.encounter = f.encounter ) AS sales, ( SELECT SUM(a.pay_amount) FROM ar_activity AS a WHERE a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS payments, ( SELECT SUM(a.adj_amount) FROM ar_activity AS a WHERE a.pid = f.pid AND a.encounter = f.encounter AND a.deleted IS NULL) AS adjustments, cpt.cpt_codes, CASE WHEN b.billed = 1 THEN 'Billed' ELSE 'Not billed' END AS billing_status FROM form_encounter AS f JOIN patient_data AS p ON p.pid = f.pid JOIN billing AS b ON f.pid=b.pid LEFT OUTER JOIN users AS u ON u.id = f.referring_provider_id LEFT OUTER JOIN users AS w ON w.id = f.provider_id LEFT JOIN ( SELECT pid, encounter, GROUP_CONCAT(DISTINCT code ORDER BY code SEPARATOR ',') AS cpt_codes FROM billing WHERE code_type = 'CPT4' AND activity = 1 GROUP BY pid, encounter ) cpt ON cpt.pid = f.pid AND cpt.encounter = f.encounter where " .
-        $where ;
-        // " ORDER BY f.pid, f.encounter, cpt.code;";
+    $query = "SELECT f.id, f.date, f.pid,
+        CONCAT(w.lname, ', ', w.fname) AS provider_id,
+        f.encounter, f.last_level_billed, f.last_level_closed, f.last_stmt_date,
+        f.stmt_count, f.invoice_refno, f.in_collection,
+        p.fname, p.mname, p.lname, p.street, p.city, p.state, p.postal_code,
+        p.phone_home, p.ss, p.billing_note, p.pubpid, p.DOB,
+        CONCAT(u.lname, ', ', u.fname) AS referrer,
+        (SELECT insurance_companies.name
+            FROM insurance_data
+            JOIN insurance_companies ON insurance_companies.id = insurance_data.provider
+            WHERE insurance_data.type = 'primary'
+            AND insurance_data.pid = p.pid
+            LIMIT 1) AS insurance_name,
+        (SELECT bill_date
+            FROM billing AS b
+            WHERE b.pid = f.pid
+            AND b.encounter = f.encounter
+            AND b.activity = 1
+            AND b.code_type != 'COPAY'
+            LIMIT 1) AS bill_date,
+        (SELECT SUM(b.fee)
+            FROM billing AS b
+            WHERE b.pid = f.pid
+            AND b.encounter = f.encounter
+            AND b.activity = 1
+            AND b.code_type != 'COPAY') AS charges,
+        (SELECT SUM(b.fee)
+            FROM billing AS b
+            WHERE b.pid = f.pid
+            AND b.encounter = f.encounter
+            AND b.activity = 1
+            AND b.code_type = 'COPAY') AS copays,
+        (SELECT SUM(s.fee)
+            FROM drug_sales AS s
+            WHERE s.pid = f.pid
+            AND s.encounter = f.encounter) AS sales,
+        b.code,
+        (SELECT SUM(a.pay_amount)
+            FROM ar_activity AS a
+            WHERE a.pid = f.pid
+            AND a.encounter = f.encounter
+            AND a.deleted IS NULL) AS payments,
+        (SELECT SUM(a.adj_amount)
+            FROM ar_activity AS a
+            WHERE a.pid = f.pid
+            AND a.encounter = f.encounter
+            AND a.deleted IS NULL) AS adjustments,
+        CASE WHEN b.billed = 1 THEN 'Billed' ELSE 'Not billed' END AS billing_status,
+        b.fee AS chg,
+        (SELECT a.pay_amount
+            FROM ar_activity AS a
+            WHERE a.encounter = b.encounter
+            AND a.code = b.code
+            AND a.pay_amount > 0
+            LIMIT 1) AS paid,
+            (SELECT a.adj_amount
+            FROM ar_activity AS a
+            WHERE a.encounter = b.encounter
+            AND a.code = b.code
+            AND a.adj_amount > 0
+            LIMIT 1) AS adj
+            FROM billing b
+            JOIN patient_data AS p ON p.pid = b.pid
+            JOIN form_encounter AS f ON f.pid = p.pid
+            JOIN ar_activity ON ar_activity.encounter = b.encounter AND ar_activity.code = b.code
+            LEFT OUTER JOIN users AS u ON u.id = f.referring_provider_id
+            LEFT OUTER JOIN users AS w ON w.id = f.provider_id
+            WHERE ar_activity.deleted IS NULL
+            AND b.code_type = 'CPT4'
+            /*AND b.pid = :pid*/ 
+            GROUP BY ar_activity.code";
 
     $eres = sqlStatement($query, $sqlArray);
 
@@ -420,57 +489,55 @@ if (!empty($_POST['download_csv'])) {
 
                 <!-- HAROON_CHANGE_2_END_08262025  -->
 
-                <table>
-                    <tr>
-                        <td>
+                
                             <table>
 
                                 <tr>
-                                    <td class='col-form-label'>
+                                    <td hidden class='col-form-label'>
                                         <?php echo xlt('Service Date'); ?>:
                                     </td>
                                     <td>
-                                        <input type='text' class='datepicker form-control' name='form_date' id="form_date" size='10' value='<?php echo attr(oeFormatShortDate($form_date)); ?>'>
+                                        <input hidden type='text' class='datepicker form-control' name='form_date' id="form_date" size='10' value='<?php echo attr(oeFormatShortDate($form_date)); ?>'>
                                     </td>
-                                    <td class='col-form-label'>
+                                    <td hidden class='col-form-label'>
                                         <?php echo xlt('To{{Range}}'); ?>:
                                     </td>
                                     <td>
-                                        <input type='text' class='datepicker form-control' name='form_to_date' id="form_to_date" size='10' value='<?php echo attr(oeFormatShortDate($form_to_date)); ?>'>
+                                        <input hidden type='text' class='datepicker form-control' name='form_to_date' id="form_to_date" size='10' value='<?php echo attr(oeFormatShortDate($form_to_date)); ?>'>
                                     </td>
+
 
 
                                 </tr>
 
                             </table>
-                        </td>
-                    </tr>
-                </table>
-
-            </div>
-
-            </td>
-            <td align='left' valign='middle' height="100%">
-                <table style='border-left:1px solid; width:100%; height:100%'>
-                    <tr>
-                        <td>
                             <div class="text-center">
-                                <div class="btn-group" role="group">
-                                    <a href='#' class='btn btn-secondary btn-save' onclick='$("#form_refresh").attr("value","true"); $("#form_csvexport").val(""); $("#form_export").val(""); $("#form_clear_ins_debt").val(""); $("#theform").submit();'>
-                                        <?php echo xlt('Submit'); ?>
-                                    </a>
-                                    <?php if (!empty($_POST['form_refresh'])) { ?>
-                                        <a href='#' class='btn btn-secondary btn-print' onclick='window.print()'>
-                                            <?php echo xlt('Print'); ?>
+                                    <div class="btn-group" role="group">
+                                        <a href='#' class='btn btn-secondary btn-save' onclick='$("#form_refresh").attr("value","true"); $("#form_csvexport").val(""); $("#form_export").val(""); $("#form_clear_ins_debt").val(""); $("#theform").submit();'>
+                                            <?php echo xlt('Generate AR Activity Report'); ?>
                                         </a>
-                                    <?php } ?>
+                                        <?php if (!empty($_POST['form_refresh'])) { ?>
+                                            <a href='#' class='btn btn-secondary btn-print' onclick='window.print()'>
+                                                <?php echo xlt('Print'); ?>
+                                            </a>
+                                        <?php } ?>
+                                    </div>
                                 </div>
-                            </div>
-                        </td>
-                    </tr>
-                </table>
-            </td>
-            </tr>
+                       
+
+                </div>
+
+                </td>
+                <td align='left' valign='middle' height="100%">
+                    <table style='border-left:1px solid; width:100%; height:100%'>
+                        <tr>
+                            <td>
+                                
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+                </tr>
             </table>
             </div>
         </form>

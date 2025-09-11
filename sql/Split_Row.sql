@@ -1209,6 +1209,8 @@ FROM auglab.billing ablg into outfile '/var/lib/mysql/alab_only_billing_data.csv
 ENCLOSED BY '"'
 LINES TERMINATED BY '\n';;
 
+
+
 SELECT afe.id,  afe.`date`, afe.reason, afe.facility, afe.facility_id, afe.pid, afe.encounter, afe.onset_date, afe.sensitivity, afe.billing_note, afe.pc_catid, afe.last_level_billed, afe.last_level_closed, afe.last_stmt_date, afe.stmt_count, afe.provider_id, afe.supervisor_id, afe.invoice_refno, afe.referral_source, afe.billing_facility, afe.external_id, afe.pos_code, afe.parent_encounter_id, afe.class_code, afe.shift, afe.voucher_number, afe.discharge_disposition, afe.encounter_type_code, afe.encounter_type_description, afe.referring_provider_id, afe.date_end, afe.in_collection, afe.last_update, afe.ordering_provider_id, afe.crelio_order_id, afe.hl7_file_name
 FROM auglab.form_encounter afe  into outfile '/var/lib/mysql/alab_only_encounter_data.csv' FIELDS TERMINATED BY ','
 ENCLOSED BY '"'
