@@ -31,7 +31,7 @@ set_time_limit(0);
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
-date_default_timezone_set('Asia/Kolkata');
+date_default_timezone_set('America/Chicago');
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -357,7 +357,8 @@ SQL;
     $columnsOrder = [];
 
     if ($OUTPUT_FORMAT === 'csv') {
-        $fp = fopen($CSV_PATH, file_exists($CSV_PATH) ? 'a' : 'w');
+        $fp = fopen($CSV_PATH, 'w');
+        // $fp = fopen($CSV_PATH, file_exists($CSV_PATH) ? 'a' : 'w');
         if (!$fp) {
             throw new RuntimeException('Unable to open CSV for writing: ' . $CSV_PATH);
         }
@@ -423,13 +424,12 @@ SQL;
             $totalRows++;
         }
     }
-
     // ====== SAVE FILE ======
     if ($OUTPUT_FORMAT === 'csv') {
         fclose($fp);
         $source = $CSV_PATH;
         chdir("../../sites/default/documents/temp/");
-        $destination = getcwd()."/". basename($source);
+        $destination = getcwd() . "/" . basename($source);
 
         if (copy($source, $destination)) {
             echo "File copied successfully";
@@ -437,24 +437,12 @@ SQL;
             echo "Failed to copy file";
         }
         echo "CSV export complete: {$CSV_PATH} (rows: {$totalRows})\n";
-
-        // Debug the file
-        // echo "File path: " . $CSV_PATH . "<br>";
-        // echo "File exists: " . (file_exists($CSV_PATH) ? "Yes" : "No") . "<br>";
-        // echo "File size: " . filesize($CSV_PATH) . " bytes<br>";
-
-        // $file = $CSV_PATH; // Path to file on server
-   
-        // echo "Input File name is " . $file;
-        // echo "Output File name is " . $filename;
-        // // Debug the file
-        // echo "File path: " . $file . "<br>";
-        // echo "File exists: " . (file_exists($file) ? "Yes" : "No") . "<br>";
-        // echo "File size: " . filesize($file) . " bytes<br>";
+        unlink($source);
         $timestamp = date('Y-m-d_H-i-s');
-        $filename = "alab_ar_report_export_{$timestamp}.csv"; 
+        $filename = "alab_ar_report_export_{$timestamp}.csv";
         if (file_exists($destination)) {
             // Set headers to force download
+
             header('Content-Description: File Transfer');
             header('Content-Type: text/csv');
             header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -479,150 +467,7 @@ SQL;
         echo "XLSX export complete: {$XLSX_PATH} (rows: {$totalRows})\n";
     }
 
-    // $rows = array();
-    // $where = "";
-    // // HAROON_CHANGE_4_START_08262025
-    // // $where .= " /** haroon start **/ b.code_type like '%' /** haroon end **/ ";
-    // //HAROON_CHANGE_4_END_08262025
 
-    // // $sqlArray = array();
-    // if ($form_date) {
-    //     if ($where) {
-    //         $where .= " AND ";
-    //     }
-
-    //     if ($form_to_date) {
-    //         $where .= "f.date >= ? AND f.date <= ? ";
-    //         array_push($sqlArray, $form_date . ' 00:00:00', $form_to_date . ' 23:59:59');
-    //     } else {
-    //         $where .= "f.date >= ? AND f.date <= ? ";
-    //         array_push($sqlArray, $form_date . ' 00:00:00', $form_date . ' 23:59:59');
-    //     }
-
-    //     $where .= " ORDER BY f.pid, f.encounter; ";
-
-    // }
-
-    // if (! $where) {
-    //     $where = "1 = 1";
-    // }
-    // $sqlArray = array(); 
-    // $timestamp = date('Y-m-d_H-i-s');
-    // $query = "SELECT f.id, f.date, f.pid,
-    //     CONCAT(w.lname, ', ', w.fname) AS provider_id,
-    //     f.encounter, f.last_level_billed, f.last_level_closed, f.last_stmt_date,
-    //     f.stmt_count, f.invoice_refno, f.in_collection,
-    //     p.fname, p.mname, p.lname, p.street, p.city, p.state, p.postal_code,
-    //     p.phone_home, p.ss, p.billing_note, p.pubpid, p.DOB,
-    //     CONCAT(u.lname, ', ', u.fname) AS referrer,
-    //     (SELECT insurance_companies.name
-    //         FROM insurance_data
-    //         JOIN insurance_companies ON insurance_companies.id = insurance_data.provider
-    //         WHERE insurance_data.type = 'primary'
-    //         AND insurance_data.pid = p.pid
-    //         LIMIT 1) AS insurance_name,
-    //     (SELECT bill_date
-    //         FROM billing AS b
-    //         WHERE b.pid = f.pid
-    //         AND b.encounter = f.encounter
-    //         AND b.activity = 1
-    //         AND b.code_type != 'COPAY'
-    //         LIMIT 1) AS bill_date,
-    //     (SELECT SUM(b.fee)
-    //         FROM billing AS b
-    //         WHERE b.pid = f.pid
-    //         AND b.encounter = f.encounter
-    //         AND b.activity = 1
-    //         AND b.code_type != 'COPAY') AS charges,
-    //     (SELECT SUM(b.fee)
-    //         FROM billing AS b
-    //         WHERE b.pid = f.pid
-    //         AND b.encounter = f.encounter
-    //         AND b.activity = 1
-    //         AND b.code_type = 'COPAY') AS copays,
-    //     (SELECT SUM(s.fee)
-    //         FROM drug_sales AS s
-    //         WHERE s.pid = f.pid
-    //         AND s.encounter = f.encounter) AS sales,
-    //     b.code,
-    //     (SELECT SUM(a.pay_amount)
-    //         FROM ar_activity AS a
-    //         WHERE a.pid = f.pid
-    //         AND a.encounter = f.encounter
-    //         AND a.deleted IS NULL) AS payments,
-    //     (SELECT SUM(a.adj_amount)
-    //         FROM ar_activity AS a
-    //         WHERE a.pid = f.pid
-    //         AND a.encounter = f.encounter
-    //         AND a.deleted IS NULL) AS adjustments,
-    //     CASE WHEN b.billed = 1 THEN 'Billed' ELSE 'Not billed' END AS billing_status,
-    //     b.fee AS chg,
-    //     (SELECT a.pay_amount
-    //         FROM ar_activity AS a
-    //         WHERE a.encounter = b.encounter
-    //         AND a.code = b.code
-    //         AND a.pay_amount > 0
-    //         LIMIT 1) AS paid,
-    //         (SELECT a.adj_amount
-    //         FROM ar_activity AS a
-    //         WHERE a.encounter = b.encounter
-    //         AND a.code = b.code
-    //         AND a.adj_amount > 0
-    //         LIMIT 1) AS adj
-    //         FROM billing b
-    //         JOIN patient_data AS p ON p.pid = b.pid
-    //         JOIN form_encounter AS f ON f.pid = p.pid
-    //         JOIN ar_activity ON ar_activity.encounter = b.encounter AND ar_activity.code = b.code
-    //         LEFT OUTER JOIN users AS u ON u.id = f.referring_provider_id
-    //         LEFT OUTER JOIN users AS w ON w.id = f.provider_id
-    //         WHERE ar_activity.deleted IS NULL
-    //         AND b.code_type = 'CPT4'
-    //         /*AND b.pid = :pid*/
-    //         GROUP BY ar_activity.code";
-
-    // $eres = sqlStatement($query, $sqlArray);
-
-    // $filename = "alab_ar_report_export_{$timestamp}.csv";
-    // chdir("../../sites/default/documents/temp/");
-    // $filePath = getcwd() . "/" . $filename;
-    // error_reporting(0);
-
-    // while (ob_get_level()) {
-    //     ob_end_clean();
-    // }
-
-    // // Set headers FIRST
-    // header('Content-Type: text/csv; charset=utf-8');
-    // header('Content-Disposition: attachment; filename="' . $filename . '"');
-    // header('Cache-Control: private, no-transform, no-store, must-revalidate');
-    // header('Expires: 0');
-    // header('Pragma: no-cache');
-
-    // $output = fopen('php://output', 'w');
-
-    // fprintf($output, "\xEF\xBB\xBF");
-
-    // $result = sqlStatement($query, $sqlArray);
-
-    // $first = true;
-    // while ($row = sqlFetchArray($result)) {
-    //     if ($first) {
-    //         // Output headers
-    //         fputcsv($output, array_keys($row));
-    //         $first = false;
-    //     }
-
-    //     $cleanRow = array_map(function ($value) {
-    //         if ($value === null) return '';
-    //         return str_replace(array("\r", "\n"), ' ', $value);
-    //     }, $row);
-
-    //     fputcsv($output, $cleanRow);
-    // }
-
-    // fclose($output);
-
-    // exit;
 } else {
 ?>
     <html>
